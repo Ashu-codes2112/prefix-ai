@@ -113,7 +113,7 @@ class RequestService:
         *,
         now: dt.datetime,
     ) -> Task:
-        principal.require(Permission.APPOINTMENT_WRITE)
+        principal.require(Permission.REQUEST_ANSWER)
         task = self._pending(principal, task_id)
         appointment = self._session.get(Appointment, task.appointment_id)
         if appointment is None:  # pragma: no cover - the foreign key prevents this
@@ -126,6 +126,7 @@ class RequestService:
             appointment.id,
             AppointmentReschedule(scheduled_at=scheduled_at, arrival_at=arrival_at),
             now=now,
+            permission=Permission.REQUEST_ANSWER,
         )
         task.status = TaskStatus.DONE
         task.completed_at = now
@@ -133,7 +134,7 @@ class RequestService:
         return task
 
     def decline(self, principal: StaffPrincipal, task_id: uuid.UUID, *, now: dt.datetime) -> Task:
-        principal.require(Permission.APPOINTMENT_WRITE)
+        principal.require(Permission.REQUEST_ANSWER)
         task = self._pending(principal, task_id)
         task.status = TaskStatus.CANCELLED
         task.completed_at = now

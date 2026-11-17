@@ -189,9 +189,15 @@ export function listRequests(): Promise<RescheduleRequest[]> {
   return guarded(api<RescheduleRequest[]>("/requests"));
 }
 
-/** Mirrors the API's APPOINTMENT_WRITE permission for answering reschedule requests. */
+const REQUEST_ANSWERERS: ReadonlySet<Role> = new Set([
+  "ADMIN",
+  "COORDINATOR",
+  "DEMO_VIEWER",
+]);
+
+/** Mirrors the API's REQUEST_ANSWER permission; guests may answer the demo's requests. */
 export function canAnswerRequests(role: Role): boolean {
-  return WAITLIST_MANAGERS.has(role);
+  return REQUEST_ANSWERERS.has(role);
 }
 
 const MESSENGERS: ReadonlySet<Role> = new Set([

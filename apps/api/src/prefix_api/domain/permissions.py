@@ -23,6 +23,8 @@ class Permission(StrEnum):
     TASK_COMPLETE = "task:complete"
     DEMO_RESET = "demo:reset"
     MESSAGE_SEND = "message:send"
+    # Approve or decline a patient's reschedule request (approving moves the procedure).
+    REQUEST_ANSWER = "request:answer"
 
 
 _P = Permission
@@ -41,6 +43,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             _P.TASK_COMPLETE,
             _P.STEP_CONFIRM,
             _P.ANALYTICS_READ,
+            # The demo's reschedule requests are part of what a guest tries out.
+            _P.REQUEST_ANSWER,
         }
     ),
     Role.COORDINATOR: frozenset(
@@ -58,6 +62,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             _P.ANALYTICS_READ,
             _P.ANALYTICS_EXPORT,
             _P.MESSAGE_SEND,
+            _P.REQUEST_ANSWER,
         }
     ),
     Role.NURSE: frozenset(

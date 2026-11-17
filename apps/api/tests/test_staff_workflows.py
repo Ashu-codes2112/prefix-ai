@@ -164,15 +164,30 @@ def test_declining_a_request_keeps_the_procedure_time(
     assert booked.appointment.scheduled_at == before
 
 
-def test_guests_see_requests_but_cannot_answer_them(
+def test_guests_can_answer_requests_but_not_move_bookings_themselves(
     client: TestClient, build: Builder, db_session: Session, settings: Settings
 ) -> None:
     booked = book(build, db_session)
     guest = headers_for(build, db_session, booked, settings, Role.DEMO_VIEWER)
     request = open_task(db_session, booked, TaskType.RESCHEDULE)
+    new_time = booked.appointment.scheduled_at + dt.timedelta(days=2)
 
     assert client.get("/requests", headers=guest).status_code == 200
-    assert client.post(f"/requests/{request.id}/decline", headers=guest).status_code == 403
+    approved = client.post(
+        f"/requests/{request.id}/approve",
+        json={"scheduled_at": new_time.isoformat()},
+        headers=guest,
+    )
+    assert approved.status_code == 200, approved.text
+    db_session.refresh(booked.appointment)
+    assert booked.appointment.scheduled_at == new_time
+    # Answering a request is all: moving a booking directly still needs booking rights.
+    moved = client.post(
+        f"/appointments/{booked.appointment.id}/reschedule",
+        json={"scheduled_at": (new_time + dt.timedelta(days=1)).isoformat()},
+        headers=guest,
+    )
+    assert moved.status_code == 403
 
 
 def test_badges_count_open_work_by_kind(

@@ -149,8 +149,12 @@ export function UpcomingTable({
               <div className="flex w-56 flex-col gap-1">
                 <RiskPill level={row.risk_level} score={row.risk_score} />
                 {row.risk_reasons.length > 0 ? (
-                  <p className="line-clamp-1 text-xs text-muted-foreground">
-                    {row.risk_reasons.slice(0, 2).join(" · ")}
+                  // Two lines at most; the whole list shows on hover.
+                  <p
+                    className="line-clamp-2 text-xs text-muted-foreground"
+                    title={row.risk_reasons.join(" · ")}
+                  >
+                    {row.risk_reasons.join(" · ")}
                   </p>
                 ) : null}
               </div>

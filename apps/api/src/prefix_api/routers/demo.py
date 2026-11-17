@@ -37,5 +37,5 @@ def open_demo_patient(
     now: Now,
     lang: Literal["en", "hi"] = "en",
 ) -> DemoPatientLinkOut:
-    url, name = demo_patient_link(session, settings, language=lang, now=now)
+    url, name = demo_patient_link(session, settings, principal, language=lang, now=now)
     return DemoPatientLinkOut(url=url, patient_name=name, language=lang)

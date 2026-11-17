@@ -4,8 +4,13 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 
 ## Resume point
 
-**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, and the staff notifications fix v1.3.0 on 2026-10-31 (see the last entries below). All phases 0–12 are merged.
+**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, and demo parity v1.4.0 on 2026-11-17 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
 **Goal:** demo-ready v1.0.0 as fast as possible, without weakening the safety rules. Speed rules: related tests while developing, full suite once per plan item, Playwright once per phase, pre-commit on changed files, push after each item, wait for CI only before merging into main. About 60–90 minutes per phase. A problem that takes over 15 minutes is logged under "Known issues" and skipped.
+**Road to v2.0.0** (one branch per part, `part-<n>-<name>`; merge after green CI; tag a minor version per part, then `v2.0.0`):
+- [x] Part 1 — Demo parity (`v1.4.0`).
+- [ ] Part 2 — Real messaging: Twilio SMS and WhatsApp providers from `TWILIO_*` env vars, falling back to the console provider with "Messaging: demo mode" in the staff UI; the demo never sends, except an admin-only, rate-limited, audited "Send test reminder to my phone"; inbound webhook with Twilio signature validation, YES/NO/HELP linked to the pending check-in; Celery worker and beat easy to run on Windows without Docker (documented).
+- [ ] Parts 3 and later: the owner's request was cut off after Part 2. Ask for the rest before starting them.
+
 **Known gaps before a real hospital goes live** (details in [docs/COMPLIANCE.md](docs/COMPLIANCE.md)): no retention schedule or erasure job; no subject-access export; no breach-notification workflow; no first-admin command for a real hospital (the seed creates demonstration data only); vendor agreements (Twilio, SMTP, Anthropic) are the hospital's to sign.
 
 **Known limits in the release:** rate limits live in one API process; the content policy allows inline scripts (Next.js page data); the patient portal's first load can exceed 5 seconds under a full parallel test run; PII key rotation has no re-encryption job; analytics does not yet count backfilled slots.
@@ -205,3 +210,13 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   - Read marks are per person. Closing the escalation or task behind an item counts as read for everyone.
   - The polled summary holds only totals and an id, so it is not audited. The feed and read marks are audited per item.
   - Red-flag words in a problem note, a reschedule note or a free-text SMS now mark that notification urgent. The escalation rules themselves are unchanged.
+- [x] **Part 1 — Demo parity** · 2026-11-17 · `v1.4.0` · branch `part-1-demo-parity`
+  One Demo Hospital for everything: the seeded admin (`admin@demo-hospital.example.com`), "Try as Guest" and "View patient demo". `seed.py` sets it up; the old separate `guest-demo-hospital` is retired on the next seed or reset. A patient's problem, question or reschedule request reaches the guest's bell, Inbox and Requests within 15 seconds, and guests may answer requests (new `REQUEST_ANSWER` permission). Bookings sit on 15-minute slots from 8 am to 3:45 pm. A month of seeded history and a stored baseline rate (migration 0011) let Analytics lead with cancellations, theatre time and revenue saved. The fixture adds patients to the Demo Hospital by default (`--isolated` for Playwright). Text no longer reads through the sticky top bar, and risk reasons wrap to two lines with the full list on hover.
+  Verified: 534 pytest, 139 Vitest, 18 Playwright (a new spec runs the whole demo from the guest login), ruff, mypy, ESLint, tsc and Prettier clean. CI result is recorded at merge.
+  **Notes:**
+  - Next.js 16.4.6 (from 16.4.3): `next build` now refuses a version with a published security advisory.
+  - The glass bars had no blur in Chrome and Edge: the CSS compiler kept only `-webkit-backdrop-filter`. Only the standard property is written now.
+  - Demo bookings follow the SAMPLE protocol when a hospital also approved its own for the same procedure (the demo used to fail to book then).
+  - `E2E_API_PORT` moves the Playwright API off port 8000 when another app uses it.
+  **Known issue:**
+  - The API sees the web server's address for every visitor (no `X-Forwarded-For`), so per-client rate limits are shared by all visitors and audit entries record the web server as "from where". The guest allowance is now 60 sign-ins per 10 minutes, sized for a class. The fix is to forward the visitor's address and trust it only from the web server.

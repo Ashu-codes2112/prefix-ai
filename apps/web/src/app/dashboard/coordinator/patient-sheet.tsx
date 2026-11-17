@@ -77,6 +77,8 @@ export function permissionsFor(role: Role) {
   const canChange = role === "ADMIN" || role === "COORDINATOR";
   return {
     canChange,
+    // Mirrors REQUEST_ANSWER: guests may answer the demo's reschedule requests.
+    canAnswer: canChange || role === "DEMO_VIEWER",
     canComplete: canChange || role === "NURSE" || role === "DEMO_VIEWER",
     canMessage: canChange || role === "NURSE",
   };
@@ -479,10 +481,10 @@ function MessagesTab({
 
 function RequestsTab({
   drawer,
-  canChange,
+  canAnswer,
 }: {
   drawer: Drawer;
-  canChange: boolean;
+  canAnswer: boolean;
 }) {
   const requests = drawer.tasks.filter((task) => task.type === "RESCHEDULE");
   const name = drawer.appointment.patient_name;
@@ -531,7 +533,7 @@ function RequestsTab({
                 Asked {when(task.created_at)}
               </p>
             ) : null}
-            {state === "pending" && canChange ? (
+            {state === "pending" && canAnswer ? (
               <div className="flex flex-wrap gap-2">
                 <ActionButton
                   size="sm"
@@ -730,7 +732,7 @@ export function PatientSheet({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const { canChange, canComplete, canMessage } = permissionsFor(role);
+  const { canAnswer, canComplete, canMessage } = permissionsFor(role);
   const row = drawer.appointment;
   const requests = drawer.tasks.filter((task) => task.type === "RESCHEDULE");
   const pending = requests.filter(
@@ -784,7 +786,7 @@ export function PatientSheet({
           {
             value: "requests",
             label: pending > 0 ? `Requests (${pending})` : "Requests",
-            content: <RequestsTab drawer={drawer} canChange={canChange} />,
+            content: <RequestsTab drawer={drawer} canAnswer={canAnswer} />,
           },
           {
             value: "activity",

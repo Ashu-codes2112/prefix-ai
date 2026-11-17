@@ -2,7 +2,7 @@ import type { AnalyticsSummary } from "@prefix/shared";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { AnalyticsView, money, percent } from "./analytics-view";
+import { AnalyticsView, money, percent, theatreTime } from "./analytics-view";
 
 const BASE: AnalyticsSummary = {
   start: "2026-10-01",
@@ -32,6 +32,11 @@ describe("analytics formatting", () => {
   it("formats OR cost in rupees, and says a baseline is needed when it is missing", () => {
     expect(money(null)).toBe("Needs a baseline");
     expect(money("20250.00")).toMatch(/20,250/);
+  });
+
+  it("gives theatre time in hours from an hour up", () => {
+    expect(theatreTime(45)).toBe("45 min");
+    expect(theatreTime(570)).toBe("9.5 h");
   });
 });
 
@@ -67,5 +72,42 @@ describe("analytics view", () => {
 
     expect(screen.getByText(/Against a baseline of 15%/)).toBeInTheDocument();
     expect(screen.getByText("90 minutes")).toBeInTheDocument();
+  });
+
+  it("leads with what was prevented when there is a baseline", () => {
+    render(
+      <AnalyticsView
+        summary={{
+          ...BASE,
+          baseline_rate: 14,
+          avoided_estimate: 10,
+          or_minutes_saved_estimate: 570,
+          or_cost_saved_estimate: "142500.00",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "What Prefix AI prevented, 1 Oct to 28 Oct",
+      }),
+    ).toBeInTheDocument();
+    const figures = screen.getAllByRole("definition").map((d) => d.textContent);
+    expect(figures.slice(0, 3)).toEqual([
+      "10",
+      "9.5 h",
+      expect.stringMatching(/1,42,500/),
+    ]);
+    expect(
+      screen.getByText("10% cancelled, against 14% before Prefix AI"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no prevented figures without a baseline", () => {
+    render(<AnalyticsView summary={BASE} />);
+
+    expect(
+      screen.queryByText("Cancellations prevented"),
+    ).not.toBeInTheDocument();
   });
 });

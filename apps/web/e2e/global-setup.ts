@@ -4,11 +4,11 @@ import path from "node:path";
 // Playwright loads this file as CommonJS, so __dirname is available.
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 
-/** Creates fresh portal data (a new organization each run) and shares the magic links. */
+/** Creates fresh portal data (new organizations each run, --isolated) and shares the magic links. */
 export default function globalSetup(): void {
   const output = execFileSync(
     "uv",
-    ["run", "python", "scripts/e2e_portal_fixture.py"],
+    ["run", "python", "scripts/e2e_portal_fixture.py", "--isolated"],
     { cwd: REPO_ROOT, encoding: "utf8" },
   );
   const lastLine = output.trim().split("\n").at(-1) ?? "";

@@ -1,28 +1,25 @@
-"""Create or refresh the guest demo hospital. Run with `make seed-demo` (or the command below).
+"""Create or refresh the Demo Hospital's synthetic patients. Run with `make seed-demo`:
 
     uv run python -m prefix_api.seed_demo
 
-Safe to re-run: it regenerates the synthetic patients, bookings and reminders, and keeps the
-demo's staff accounts and approved protocols. It refuses to run in production. The demo
-admin's password is printed only when the account is first created; set DEMO_ADMIN_PASSWORD
-to choose it.
+Safe to re-run: it regenerates the synthetic patients, bookings, reminders and last month's
+history, and keeps the hospital's staff accounts and approved protocols. It refuses to run in
+production. The admin's password is printed only when the account is first created; set
+SEED_ADMIN_PASSWORD (or DEMO_ADMIN_PASSWORD) to choose it.
 """
 
 import datetime as dt
-import os
-import secrets
 import sys
+
+from sqlalchemy import select
 
 from prefix_api.core.config import get_settings
 from prefix_api.core.crypto import configure_crypto
 from prefix_api.core.logging import configure_logging
+from prefix_api.db.models import User
 from prefix_api.db.session import create_db_engine, create_session_factory
-from prefix_api.services.demo import (
-    DEMO_EMAIL_DOMAIN,
-    DEMO_SLUG,
-    demo_organization,
-    populate_demo,
-)
+from prefix_api.seed import DEMO_ADMIN_EMAIL, admin_password_from_env
+from prefix_api.services.demo import populate_demo
 
 
 def main() -> None:
@@ -36,22 +33,22 @@ def main() -> None:
     try:
         factory = create_session_factory(engine)
         with factory() as session:
-            existed = demo_organization(session) is not None
-        password = os.environ.get("DEMO_ADMIN_PASSWORD") or secrets.token_urlsafe(12)
+            admin_existed = (
+                session.scalar(select(User.id).where(User.email == DEMO_ADMIN_EMAIL)) is not None
+            )
+        password = admin_password_from_env()
         result = populate_demo(factory, now=dt.datetime.now(dt.UTC), admin_password=password)
     finally:
         engine.dispose()
 
     print(  # noqa: T201 - a developer-facing summary
-        f"Demo hospital ready: {result.patients} patients, {result.appointments} bookings, "
+        f"Demo Hospital ready: {result.patients} patients, {result.appointments} bookings, "
         f"{result.reminders_sent} reminders, {result.answers} answers, "
         f"{result.escalations} escalations."
     )
     print("Guest sign-in: the 'Try as Guest' button at http://localhost:3000/login")  # noqa: T201
-    if not existed:
-        print(  # noqa: T201
-            f"Demo admin (resets the demo): admin@{DEMO_SLUG}.{DEMO_EMAIL_DOMAIN} / {password}"
-        )
+    if not admin_existed:
+        print(f"Demo admin (same hospital): {DEMO_ADMIN_EMAIL} / {password}")  # noqa: T201
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ Optional, for reminders: a third terminal with `uv run celery --app prefix_worke
 ## Sign in
 
 - **Guest (no password):** open http://localhost:3000/login and press **Try as Guest**. A guest can read everything and tick things off, but cannot approve protocols, manage users, import or reset the demo.
-- **Demo admin:** `admin@guest-demo-hospital.demo.example.com`, with the password `seed_demo` printed the first time it ran.
+- **Demo admin:** `admin@demo-hospital.example.com`, with the password `seed` (or `seed_demo`) printed the first time it ran. Set `SEED_ADMIN_PASSWORD` to choose it. The admin, the guest and **View patient demo** all use the one Demo Hospital.
 - **Your own hospital:** there is no onboarding command yet. See [DEPLOYMENT.md](DEPLOYMENT.md#first-admin).
 
 API documentation is at http://localhost:8000/docs when `APP_ENV` is not `production`.

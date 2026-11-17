@@ -1,7 +1,10 @@
 """Guest demo: what a guest can see and do, what they cannot, and that demo messages never leave."""
 
 import datetime as dt
+import uuid
+from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from api_testkit import Builder, make_test_settings, staff_headers
@@ -12,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from prefix_api.core.config import Settings
 from prefix_api.db.models import (
+    Appointment,
     Organization,
     PatientTimelineEvent,
     PrepProtocol,
@@ -19,9 +23,11 @@ from prefix_api.db.models import (
     Task,
     User,
 )
-from prefix_api.domain.enums import Role, TaskStatus, TaskType
+from prefix_api.domain.enums import ProtocolStatus, Role, TaskStatus, TaskType
 from prefix_api.main import create_app
-from prefix_api.services.demo import DEMO_SLUG, populate_demo
+from prefix_api.routers.auth import GUEST_LOGINS_PER_WINDOW
+from prefix_api.seed import DEMO_ORG_SLUG
+from prefix_api.services.demo import demo_slot, populate_demo
 from prefix_api.services.dispatch import dispatch_due_reminders
 from prefix_api.services.translation import PassthroughTranslator
 
@@ -34,7 +40,7 @@ def demo(session_factory: Factory) -> dict[str, Any]:
     now = dt.datetime.now(dt.UTC)
     result = populate_demo(session_factory, now=now, admin_password="demo-admin-password")
     with session_factory() as session:
-        org = session.scalar(select(Organization).where(Organization.slug == DEMO_SLUG))
+        org = session.scalar(select(Organization).where(Organization.slug == DEMO_ORG_SLUG))
         assert org is not None
         guest = session.scalar(
             select(User).where(User.organization_id == org.id, User.role == Role.DEMO_VIEWER)
@@ -80,7 +86,7 @@ def test_capabilities_offer_guest_login_by_default(client: TestClient) -> None:
 
 
 def test_guest_sign_in_is_rate_limited(client: TestClient, demo: dict[str, Any]) -> None:
-    for _ in range(5):
+    for _ in range(GUEST_LOGINS_PER_WINDOW):
         assert client.post("/auth/guest").status_code == 200
 
     response = client.post("/auth/guest")
@@ -237,3 +243,142 @@ def test_demo_messages_are_logged_never_sent(
     assert provider.sent == []
     db_session.refresh(booked.events["Low-fibre diet"])
     assert booked.events["Low-fibre diet"].sent_at is not None
+
+
+# -- one Demo Hospital: the times it books, its history, and the patient demo ------------
+
+
+def test_demo_bookings_sit_on_quarter_hour_slots_in_working_hours(
+    db_session: Session, demo: dict[str, Any]
+) -> None:
+    bookings = db_session.scalars(
+        select(Appointment).where(Appointment.organization_id == demo["org"].id)
+    ).all()
+    india = ZoneInfo("Asia/Kolkata")
+
+    assert bookings
+    for booking in bookings:
+        local = booking.scheduled_at.astimezone(india)
+        assert (local.minute % 15, local.second) == (0, 0)
+        assert dt.time(8, 0) <= local.time() <= dt.time(15, 45)
+        assert local.weekday() != 6  # closed on Sundays
+
+
+def test_a_demo_slot_is_the_next_quarter_hour_in_working_hours() -> None:
+    def at(text: str) -> dt.datetime:
+        return dt.datetime.fromisoformat(text)
+
+    india = "Asia/Kolkata"
+    assert demo_slot(at("2026-11-17T09:07:00+05:30"), india) == at("2026-11-17T09:15:00+05:30")
+    assert demo_slot(at("2026-11-17T09:15:00+05:30"), india) == at("2026-11-17T09:15:00+05:30")
+    assert demo_slot(at("2026-11-17T06:00:00+05:30"), india) == at("2026-11-17T08:00:00+05:30")
+    assert demo_slot(at("2026-11-17T15:50:00+05:30"), india) == at("2026-11-18T08:00:00+05:30")
+    # Saturday evening: Sunday is closed, so the next slot is Monday morning.
+    assert demo_slot(at("2026-11-21T17:00:00+05:30"), india) == at("2026-11-23T08:00:00+05:30")
+
+
+def test_the_demo_analytics_show_what_was_avoided_in_the_last_month(
+    client: TestClient, demo: dict[str, Any]
+) -> None:
+    today = dt.datetime.now(dt.UTC).date()
+
+    response = client.get(
+        "/analytics/summary",
+        params={"start": (today - dt.timedelta(days=30)).isoformat(), "end": today.isoformat()},
+        headers=guest_headers(client),
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    # The hospital's stored baseline is used without anyone typing it in.
+    assert body["baseline_rate"] == 14.0
+    assert body["procedures"] >= 90
+    assert body["prep_cancelled"] == 3
+    assert body["cancellation_rate"] < 14
+    assert body["avoided_estimate"] > 0
+    assert body["or_minutes_saved_estimate"] > 0
+    assert Decimal(body["or_cost_saved_estimate"]) > 0
+    assert body["response_rate"] > 50
+
+
+def test_the_patient_demo_reaches_the_guest_who_opened_it(
+    client: TestClient, demo: dict[str, Any]
+) -> None:
+    guest = guest_headers(client)
+    link = client.post("/demo/patient-link", headers=guest, params={"lang": "en"}).json()
+    token = link["url"].split("#token=")[1]
+    access = client.post("/patient/session", json={"token": token}).json()["access_token"]
+    patient = {"Authorization": f"Bearer {access}"}
+
+    [appointment] = client.get("/patient/appointments", headers=patient).json()[:1]
+    step = next(s for s in appointment["steps"] if s["can_report_problem"])
+    raised = client.post(
+        f"/patient/steps/{step['event_id']}/problem", json={"note": "Ran out"}, headers=patient
+    )
+    asked = client.post(
+        f"/patient/appointments/{appointment['id']}/reschedule-request",
+        json={"note": "Travelling"},
+        headers=patient,
+    )
+
+    assert (raised.status_code, asked.status_code) == (204, 204)
+    feed = client.get("/notifications", headers=guest).json()["items"]
+    assert [(i["patient_name"], i["kind"]) for i in feed[:2]] == [
+        (link["patient_name"], "RESCHEDULE"),
+        (link["patient_name"], "PROBLEM"),
+    ]
+    request = client.get("/requests", headers=guest).json()[0]
+    assert request["patient_name"] == link["patient_name"]
+    declined = client.post(f"/requests/{request['id']}/decline", headers=guest)
+    assert declined.status_code == 200
+
+
+def test_staff_of_another_hospital_cannot_open_the_patient_demo(
+    client: TestClient, settings: Settings, build: Builder, demo: dict[str, Any]
+) -> None:
+    outside = build.user(build.organization("Real hospital"), Role.COORDINATOR)
+
+    response = client.post("/demo/patient-link", headers=staff_headers(settings, outside))
+
+    assert response.status_code == 403
+
+
+def test_the_demo_still_books_when_a_hospital_protocol_was_also_approved(
+    session_factory: Factory, demo: dict[str, Any]
+) -> None:
+    with session_factory() as session:
+        sample = session.scalars(
+            select(PrepProtocol).where(
+                PrepProtocol.organization_id == demo["org"].id, PrepProtocol.is_sample
+            )
+        ).first()
+        assert sample is not None
+        session.add(
+            PrepProtocol(
+                organization_id=sample.organization_id,
+                family_id=uuid.uuid7(),
+                version=1,
+                procedure_type_id=sample.procedure_type_id,
+                name="Our own colonoscopy plan",
+                status=ProtocolStatus.APPROVED,
+                approved_by_id=demo["admin"].id,
+                approved_at=dt.datetime.now(dt.UTC),
+            )
+        )
+        session.commit()
+        procedure_type_id = sample.procedure_type_id
+        sample_id = sample.id
+
+    populate_demo(session_factory, now=dt.datetime.now(dt.UTC))
+
+    with session_factory() as session:
+        followed = set(
+            session.scalars(
+                select(Appointment.protocol_id).where(
+                    Appointment.organization_id == demo["org"].id,
+                    Appointment.procedure_type_id == procedure_type_id,
+                    Appointment.scheduled_at > dt.datetime.now(dt.UTC),
+                )
+            )
+        )
+    assert followed == {sample_id}
