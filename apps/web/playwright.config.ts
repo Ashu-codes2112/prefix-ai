@@ -5,7 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
  * Run `pnpm --filter @prefix/web build` first: the web app is served with `next start`.
  */
 const WEB_PORT = 3000;
-const API_PORT = 8000;
+// Override when 8000 is taken locally, e.g. E2E_API_PORT=8001.
+const API_PORT = Number(process.env.E2E_API_PORT ?? 8000);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -31,7 +32,7 @@ export default defineConfig({
       name: "mobile-chrome",
       use: { ...devices["Pixel 7"] },
       testIgnore:
-        /(coordinator|guest|analytics|waitlist|imports|screenshots|staff-notifications)\.spec\.ts/,
+        /(coordinator|guest|analytics|waitlist|imports|screenshots|staff-notifications|demo)\.spec\.ts/,
     },
     // Staff screens are desktop-first.
     {
@@ -39,7 +40,7 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       // a11y runs in both projects, so screens are scanned at desktop and phone sizes.
       testMatch:
-        /(coordinator|guest|analytics|waitlist|imports|screenshots|staff-notifications|a11y)\.spec\.ts/,
+        /(coordinator|guest|analytics|waitlist|imports|screenshots|staff-notifications|demo|a11y)\.spec\.ts/,
     },
   ],
   webServer: [
@@ -52,6 +53,7 @@ export default defineConfig({
     },
     {
       command: `node ./node_modules/next/dist/bin/next start --port ${WEB_PORT}`,
+      env: { API_INTERNAL_URL: `http://localhost:${API_PORT}` },
       url: `http://localhost:${WEB_PORT}/api/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

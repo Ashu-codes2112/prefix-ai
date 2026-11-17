@@ -13,12 +13,12 @@ pnpm install                     # JavaScript packages
 cp .env.example .env             # Windows PowerShell: Copy-Item .env.example .env
 uv run --no-project --python 3.12 --with pgserver python scripts/dev_postgres.py   # PostgreSQL on port 55432
 uv run alembic -c apps/api/alembic.ini upgrade head
-uv run python -m prefix_api.seed_demo                            # demo hospital; prints the demo admin password the first time
+uv run python -m prefix_api.seed                                 # the Demo Hospital; prints the admin password the first time
 uv run uvicorn prefix_api.main:create_app --factory --port 8000  # terminal 1: the API
 pnpm dev                                                         # terminal 2: the web app, then open http://localhost:3000
 ```
 
-**Sign in as a guest:** open http://localhost:3000/login and press **Try as Guest**. No password is needed. The demo admin is `admin@guest-demo-hospital.demo.example.com`, with the password printed by `seed_demo`.
+**Sign in as a guest:** open http://localhost:3000/login and press **Try as Guest**. No password is needed. Or sign in as the demo admin, `admin@demo-hospital.example.com`, with the password the seed printed (set `SEED_ADMIN_PASSWORD` to choose it). Both are in the same Demo Hospital as **View patient demo**, so whatever the patient does there reaches the bell, the Inbox and Requests within 15 seconds. `make seed-demo` regenerates the synthetic patients.
 
 With Docker instead, run `make up`, `make migrate` and `make seed-demo`.
 
@@ -163,7 +163,7 @@ Patients open their prep plan from a single-use link (`http://localhost:3000/p#t
 uv run python scripts/e2e_portal_fixture.py
 ```
 
-This creates a throwaway test hospital with a few patients (one in Hindi) whose procedure is in two days, and prints one link for each. Open a link on your phone or in a narrow browser window. Each link works once. Staff can issue a real patient's link with `POST /patients/{id}/magic-links`.
+This adds an English- and a Hindi-speaking patient to the Demo Hospital, booked on its next slots about two days out, and prints one link for each. Sign in as the guest or the demo admin to see what they do. Open a link on your phone or in a narrow browser window. Each link works once. `--isolated` instead creates throwaway test hospitals, as the Playwright tests do. Staff can issue a real patient's link with `POST /patients/{id}/magic-links`.
 
 The portal works like a phone app, with a tab bar: **Home** (the procedure, a readiness ring and the next step), **My prep** (every step, with *Yes, done* and *I have a problem*), **Updates** (reminders, steps to do now, care-team messages and answers to reschedule requests, with an unread count on the bell and the tab) and **Help** (call 112 or the hospital, ask to reschedule, and the assistant). Everything is in English and Hindi.
 
