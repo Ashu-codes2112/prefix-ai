@@ -145,9 +145,12 @@ describe("patient sheet logic", () => {
   it("lets a guest tick things off but not move or cancel a procedure", () => {
     expect(permissionsFor("DEMO_VIEWER")).toEqual({
       canChange: false,
+      // Guests answer the demo's reschedule requests, but do not move bookings themselves.
+      canAnswer: true,
       canComplete: true,
       canMessage: false,
     });
+    expect(permissionsFor("NURSE").canAnswer).toBe(false);
     expect(permissionsFor("COORDINATOR").canChange).toBe(true);
     expect(permissionsFor("NURSE").canMessage).toBe(true);
   });

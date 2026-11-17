@@ -103,7 +103,7 @@ describe("upcoming table", () => {
     expect(screen.getByText("1 task")).toBeInTheDocument();
   });
 
-  it("shows risk as a coloured pill with words, the score and the top reasons", () => {
+  it("shows risk as a coloured pill with words, the score and the reasons", () => {
     render(
       <UpcomingTable
         rows={[
@@ -119,10 +119,15 @@ describe("upcoming table", () => {
 
     expect(screen.getByText("High risk")).toBeInTheDocument();
     expect(screen.getByText("72")).toBeInTheDocument();
-    expect(
-      screen.getByText("Escort not confirmed · Missed reminders"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Third/)).not.toBeInTheDocument();
+    // Up to two lines, and the whole list on hover.
+    const reasons = screen.getByText(
+      "Escort not confirmed · Missed reminders · Third",
+    );
+    expect(reasons).toHaveClass("line-clamp-2");
+    expect(reasons).toHaveAttribute(
+      "title",
+      "Escort not confirmed · Missed reminders · Third",
+    );
   });
 });
 
