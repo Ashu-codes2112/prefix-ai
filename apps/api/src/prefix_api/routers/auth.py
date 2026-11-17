@@ -24,8 +24,10 @@ def _out(pair: TokenPair) -> TokenPairOut:
     )
 
 
-# Guests may try the demo this many times per client address in each window.
-GUEST_LOGINS_PER_WINDOW = 5
+# Guests may try the demo this many times per client address in each window. The web server
+# calls the API for every visitor, so in practice the whole class shares this allowance: it is
+# sized for a room of students, while still stopping a flood of demo sessions.
+GUEST_LOGINS_PER_WINDOW = 60
 GUEST_WINDOW_SECONDS = 600.0
 # Password guessing is limited per account and per client address. Only failed attempts count,
 # so ordinary sign-ins never use up the allowance. The account limit is the one that matters;

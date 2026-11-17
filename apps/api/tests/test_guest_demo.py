@@ -25,6 +25,7 @@ from prefix_api.db.models import (
 )
 from prefix_api.domain.enums import ProtocolStatus, Role, TaskStatus, TaskType
 from prefix_api.main import create_app
+from prefix_api.routers.auth import GUEST_LOGINS_PER_WINDOW
 from prefix_api.seed import DEMO_ORG_SLUG
 from prefix_api.services.demo import demo_slot, populate_demo
 from prefix_api.services.dispatch import dispatch_due_reminders
@@ -85,7 +86,7 @@ def test_capabilities_offer_guest_login_by_default(client: TestClient) -> None:
 
 
 def test_guest_sign_in_is_rate_limited(client: TestClient, demo: dict[str, Any]) -> None:
-    for _ in range(5):
+    for _ in range(GUEST_LOGINS_PER_WINDOW):
         assert client.post("/auth/guest").status_code == 200
 
     response = client.post("/auth/guest")
