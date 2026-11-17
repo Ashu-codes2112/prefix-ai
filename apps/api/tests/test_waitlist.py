@@ -35,8 +35,9 @@ from prefix_api.domain.errors import ConflictError, NotFoundError, PermissionDen
 from prefix_api.domain.principal import StaffPrincipal
 from prefix_api.schemas.appointments import AppointmentCancel, AppointmentCreate
 from prefix_api.schemas.waitlist import WaitlistEntryCreate
+from prefix_api.seed import DEMO_ORG_SLUG
 from prefix_api.services.appointments import AppointmentService
-from prefix_api.services.demo import DEMO_SLUG, populate_demo
+from prefix_api.services.demo import populate_demo
 from prefix_api.services.waitlist import PURPOSE, WaitlistService
 
 KOLKATA = ZoneInfo("Asia/Kolkata")
@@ -396,7 +397,7 @@ def test_the_demo_hospital_has_a_slot_that_can_be_backfilled(
     now = dt.datetime.now(dt.UTC)
     admin_password = "demo-admin-password"  # pragma: allowlist secret
     populate_demo(session_factory, now=now, admin_password=admin_password)
-    org = db_session.scalar(select(Organization).where(Organization.slug == DEMO_SLUG))
+    org = db_session.scalar(select(Organization).where(Organization.slug == DEMO_ORG_SLUG))
     assert org is not None
     coordinator_user = db_session.scalar(
         select(User).where(User.organization_id == org.id, User.role == Role.COORDINATOR)

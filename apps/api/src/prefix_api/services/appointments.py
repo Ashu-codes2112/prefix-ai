@@ -101,8 +101,11 @@ class AppointmentService:
         data: AppointmentReschedule,
         *,
         now: dt.datetime,
+        permission: Permission = Permission.APPOINTMENT_WRITE,
     ) -> Appointment:
-        principal.require(Permission.APPOINTMENT_WRITE)
+        """Move a procedure. ``permission`` is what the caller needs: answering a patient's
+        reschedule request needs ``REQUEST_ANSWER`` rather than general booking rights."""
+        principal.require(permission)
         appointment = self._load(principal, appointment_id, for_update=True)
         if appointment.status in _CLOSED:
             raise ConflictError(f"A {appointment.status.value.lower()} appointment cannot move")

@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, String, UniqueConstraint, text
+from decimal import Decimal
+
+from sqlalchemy import Boolean, Numeric, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from prefix_api.db.base import Base, TenantScoped, Timestamps, UUIDPrimaryKey
@@ -15,6 +17,9 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
     default_timezone: Mapped[str] = mapped_column(String(64))
     # The synthetic Demo Hospital that guests use. Its messages never leave the server.
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # The hospital's cancellation rate (%) before Prefix AI. Analytics estimates what was
+    # avoided against it; without one, nothing is claimed as saved.
+    baseline_cancellation_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
 
 
 class Facility(UUIDPrimaryKey, Timestamps, TenantScoped, Base):

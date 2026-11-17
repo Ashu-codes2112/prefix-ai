@@ -7,7 +7,8 @@ Definitions are deliberate and printed on the page:
 - OR minutes and OR cost "at risk" are what the prep-related cancellations cost. This is
   exposure, not savings.
 - "Avoided" cancellations are only estimated against a baseline rate the hospital supplies
-  (its cancellation rate before Prefix AI). Without a baseline nothing is claimed as saved.
+  (its cancellation rate before Prefix AI): the one asked for, or else the one stored for the
+  organization. Without a baseline nothing is claimed as saved.
 - Slots backfilled needs the waitlist (Phase 9); it is not reported until then.
 """
 
@@ -20,7 +21,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from prefix_api.db.models import Appointment, CheckIn, ProcedureType
+from prefix_api.db.models import Appointment, CheckIn, Organization, ProcedureType
 from prefix_api.domain.enums import (
     AppointmentStatus,
     AuditAction,
@@ -92,6 +93,8 @@ class AnalyticsService:
         baseline_rate: float | None,
     ) -> Summary:
         principal.require(Permission.ANALYTICS_READ)
+        if baseline_rate is None:
+            baseline_rate = self._stored_baseline(principal)
         begin, finish = _range(start, end)
         rows = self._session.execute(
             select(Appointment, ProcedureType)
@@ -209,6 +212,12 @@ class AnalyticsService:
             details={"count": len(rows)},
         )
         return buffer.getvalue()
+
+    def _stored_baseline(self, principal: StaffPrincipal) -> float | None:
+        organization = self._session.get(Organization, principal.organization_id)
+        if organization is None or organization.baseline_cancellation_rate is None:
+            return None
+        return float(organization.baseline_cancellation_rate)
 
     def _checkin_counts(
         self, principal: StaffPrincipal, begin: dt.datetime, finish: dt.datetime

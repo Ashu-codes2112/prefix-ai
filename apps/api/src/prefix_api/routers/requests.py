@@ -17,7 +17,7 @@ router = APIRouter(
 )
 
 Reader = Annotated[StaffPrincipal, Depends(require(Permission.TASK_MANAGE))]
-Writer = Annotated[StaffPrincipal, Depends(require(Permission.APPOINTMENT_WRITE))]
+Writer = Annotated[StaffPrincipal, Depends(require(Permission.REQUEST_ANSWER))]
 
 
 def _out(item: RequestItem) -> RequestOut:
