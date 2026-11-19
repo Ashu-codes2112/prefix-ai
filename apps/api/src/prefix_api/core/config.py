@@ -15,7 +15,8 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 type AppEnv = Literal["development", "test", "staging", "production"]
 type LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 type LogFormat = Literal["json", "console"]
-type MessagingProvider = Literal["console", "live"]
+type MessagingProvider = Literal["auto", "console", "live"]
+type CeleryBroker = Literal["auto", "redis", "postgres"]
 type EmbeddingProviderName = Literal["local"]
 
 _PLACEHOLDER_SECRET_MARKER = "change-me"
@@ -42,7 +43,16 @@ class Settings(BaseSettings):
     database_url: PostgresDsn = PostgresDsn(
         "postgresql+psycopg://prefix:prefix@localhost:5432/prefix"
     )
-    redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
+    # Celery's broker and result backend: Redis (Docker Compose, CI, production). For local
+    # development on Windows without Redis, leave REDIS_URL unset (or set CELERY_BROKER=postgres)
+    # and the worker uses a database of its own on the same PostgreSQL server instead (kombu's
+    # SQLAlchemy transport). Development only: production refuses it.
+    redis_url: RedisDsn | None = None
+    celery_broker: CeleryBroker = "auto"
+    # Celery's own command line reads a CELERY_BROKER environment variable as its broker URL, so
+    # scripts/dev_worker.py hands the choice to its processes as PREFIX_CELERY_BROKER, which
+    # wins when set. In .env, CELERY_BROKER is fine: Celery does not read that file.
+    prefix_celery_broker: CeleryBroker | None = None
 
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
     web_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:3000")
@@ -67,11 +77,16 @@ class Settings(BaseSettings):
     pii_encryption_keys: Annotated[list[SecretStr], NoDecode] = Field(min_length=1)
     pii_blind_index_key: SecretStr = Field(min_length=32)
 
-    # console: log messages instead of sending. live: Twilio for SMS/WhatsApp, SMTP for email.
-    messaging_provider: MessagingProvider = "console"
+    # auto: Twilio when TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER are set,
+    # otherwise log messages instead of sending ("demo mode"). console: never send. live: Twilio
+    # (and SMTP for email), refusing to start without its credentials.
+    messaging_provider: MessagingProvider = "auto"
     twilio_account_sid: str | None = None
     twilio_auth_token: SecretStr | None = None
+    # The SMS sender in E.164 format. TWILIO_SMS_FROM is the older name and still works.
+    twilio_from_number: str | None = None
     twilio_sms_from: str | None = None
+    # The WhatsApp sender, e.g. Twilio's sandbox +14155238886; the SMS sender when unset.
     twilio_whatsapp_from: str | None = None
     # Public URL Twilio calls for inbound messages; used to verify webhook signatures.
     public_api_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
@@ -96,8 +111,10 @@ class Settings(BaseSettings):
 
     @field_validator(
         "anthropic_api_key",
+        "redis_url",
         "twilio_account_sid",
         "twilio_auth_token",
+        "twilio_from_number",
         "twilio_sms_from",
         "twilio_whatsapp_from",
         "smtp_host",
@@ -117,14 +134,51 @@ class Settings(BaseSettings):
             return [entry.strip() for entry in value.split(",") if entry.strip()]
         return value
 
+    @property
+    def sms_sender(self) -> str | None:
+        return self.twilio_from_number or self.twilio_sms_from
+
+    @property
+    def whatsapp_sender(self) -> str | None:
+        return self.twilio_whatsapp_from or self.sms_sender
+
+    @property
+    def twilio_configured(self) -> bool:
+        return bool(
+            self.twilio_account_sid
+            and self.twilio_auth_token
+            and (self.sms_sender or self.whatsapp_sender)
+        )
+
+    @property
+    def messaging_live(self) -> bool:
+        """True when messages really go out; False is "demo mode" (logged, never sent)."""
+        if self.messaging_provider == "auto":
+            return self.twilio_configured
+        return self.messaging_provider == "live"
+
+    @property
+    def celery_uses_postgres(self) -> bool:
+        choice = self.prefix_celery_broker or self.celery_broker
+        return choice == "postgres" or (choice == "auto" and self.redis_url is None)
+
     @model_validator(mode="after")
     def _live_messaging_needs_credentials(self) -> Self:
-        if self.messaging_provider == "live" and not (
-            self.twilio_account_sid and self.twilio_auth_token
-        ):
+        if self.messaging_provider == "live" and not self.twilio_configured:
             raise ValueError(
-                "MESSAGING_PROVIDER=live needs TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN"
+                "MESSAGING_PROVIDER=live needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and "
+                "TWILIO_FROM_NUMBER (or TWILIO_WHATSAPP_FROM)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _redis_broker_outside_development(self) -> Self:
+        if self.app_env in ("staging", "production") and self.celery_uses_postgres:
+            raise ValueError(
+                "Set REDIS_URL: the PostgreSQL Celery broker is for local development only"
+            )
+        if (self.prefix_celery_broker or self.celery_broker) == "redis" and self.redis_url is None:
+            raise ValueError("CELERY_BROKER=redis needs REDIS_URL")
         return self
 
     @model_validator(mode="after")

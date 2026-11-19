@@ -170,10 +170,22 @@ def live_client(session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
         messaging_provider="live",
         twilio_account_sid="AC1",
         twilio_auth_token="tok",
+        twilio_from_number="+15550001111",
         public_api_base_url="https://api.example.com",
     )
     with TestClient(create_app(settings, session_factory=session_factory)) as client:
         yield client
+
+
+def test_twilio_values_alone_make_webhooks_check_signatures(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # MESSAGING_PROVIDER=auto (the default) goes live once Twilio is configured.
+    settings = make_test_settings(
+        twilio_account_sid="AC1", twilio_auth_token="tok", twilio_from_number="+15550001111"
+    )
+    with TestClient(create_app(settings, session_factory=session_factory)) as client:
+        assert reply(client, "YES", **{"X-Twilio-Signature": "forged"}) == 401
 
 
 def test_live_webhooks_require_a_valid_twilio_signature(

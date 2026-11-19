@@ -61,7 +61,23 @@ uv run uvicorn prefix_api.main:create_app --factory --reload --port 8000
 pnpm dev
 ```
 
-Optional, for reminders: a third terminal with `uv run celery --app prefix_worker.celery_app worker --loglevel INFO --pool solo`, and a fourth with `... beat --loglevel INFO`. They need Redis at `REDIS_URL`. The demo runs without them, but reminders are only sent by the worker.
+Optional, for reminders: a third terminal with the worker and beat (see below). The demo runs without them, but only the worker sends reminders.
+
+## Reminders: the worker and beat on Windows
+
+```powershell
+uv run python scripts/dev_worker.py
+```
+
+This starts the Celery worker (`--pool=solo`, the pool that works on Windows) and beat together, on the same broker. Press Ctrl+C to stop both, or close the window.
+
+- **Without Redis** (the usual case on Windows), leave `REDIS_URL` empty in `.env`, or set `CELERY_BROKER=postgres`. The worker then uses PostgreSQL as its broker and result backend (kombu's SQLAlchemy transport), in its own database `prefix_dev_celery` on the dev server. The script creates it, and its tables, the first time. The app's database and migrations are untouched.
+- **With Redis** at `REDIS_URL` (and `CELERY_BROKER` unset or `redis`), the worker uses it. The script stops with a hint if Redis is not reachable.
+- **Do not export `CELERY_BROKER` in your shell** when running `celery` yourself: Celery's own command line reads it as a broker URL. Put it in `.env` instead. The script handles this for you.
+
+This is for development only. Docker Compose, CI and production use Redis, and the settings refuse the PostgreSQL broker in staging and production.
+
+To see a reminder go out, book a procedure for a patient who consented to SMS so that a step falls due in a minute or two. Within a minute the worker logs `message.console_send` (demo mode; the body is never logged), the patient's message shows `SENT`, and the step appears in the patient's Updates.
 
 ## Sign in
 

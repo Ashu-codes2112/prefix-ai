@@ -3,6 +3,7 @@ from typing import Any
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import setup_logging
+from sqlalchemy.engine import make_url
 
 from prefix_api.core.config import Settings, get_settings
 from prefix_api.core.logging import configure_logging
@@ -13,9 +14,29 @@ TRANSLATION_WARM_INTERVAL_SECONDS = 600.0
 RISK_REFRESH_INTERVAL_SECONDS = 900.0
 
 
+def celery_database_url(settings: Settings) -> str:
+    """The worker's own database on the app's PostgreSQL server ("<name>_celery"), so the
+    broker's and the result backend's tables stay out of the app's schema and its migrations."""
+    url = make_url(str(settings.database_url))
+    return url.set(database=f"{url.database}_celery").render_as_string(hide_password=False)
+
+
+def celery_urls(settings: Settings) -> tuple[str, str]:
+    """The broker and the result backend. Redis, except in local development without it
+    (REDIS_URL unset, or CELERY_BROKER=postgres): then kombu's SQLAlchemy transport and Celery's
+    database backend, both on ``celery_database_url``. Settings refuse that outside development.
+    """
+    if settings.celery_uses_postgres:
+        database = celery_database_url(settings)
+        return f"sqla+{database}", f"db+{database}"
+    assert settings.redis_url is not None  # noqa: S101 - celery_uses_postgres covers None
+    redis = settings.redis_url.unicode_string()
+    return redis, redis
+
+
 def create_celery_app(settings: Settings) -> Celery:
-    broker_url = settings.redis_url.unicode_string()
-    app = Celery("prefix_worker", broker=broker_url, backend=broker_url)
+    broker_url, backend_url = celery_urls(settings)
+    app = Celery("prefix_worker", broker=broker_url, backend=backend_url)
     app.conf.update(
         task_serializer="json",
         result_serializer="json",

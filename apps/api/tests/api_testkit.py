@@ -43,8 +43,21 @@ def make_test_settings(**overrides: Any) -> Settings:
         "pii_encryption_keys": [TEST_KEY_ACTIVE, TEST_KEY_OLD],
         "pii_blind_index_key": TEST_BLIND_INDEX_KEY,
         "database_url": TEST_DATABASE_URL,
+        # Given here so a developer's .env (Twilio keys, REDIS_URL) never changes a test.
+        "messaging_provider": "auto",
+        "twilio_account_sid": None,
+        "twilio_auth_token": None,
+        "twilio_from_number": None,
+        "twilio_sms_from": None,
+        "twilio_whatsapp_from": None,
+        "redis_url": None,
+        "celery_broker": "auto",
+        "prefix_celery_broker": None,
     }
     values.update(overrides)
+    if values["app_env"] in ("staging", "production") and "redis_url" not in overrides:
+        # Outside development the settings require Redis for the worker.
+        values["redis_url"] = "redis://localhost:6379/0"
     return Settings.model_validate(values)
 
 

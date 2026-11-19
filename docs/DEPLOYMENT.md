@@ -23,14 +23,14 @@ Every setting is read from the environment and validated at start-up (`apps/api/
 |---|---|
 | `APP_ENV` | `production`. Turns on HSTS, turns off `/docs` and `/openapi.json`. |
 | `DATABASE_URL` | The PostgreSQL URL, with a non-default password. |
-| `REDIS_URL` | The Redis URL for the worker. |
+| `REDIS_URL` | The Redis URL for the worker. Required outside development. The PostgreSQL broker that `scripts/dev_worker.py` uses when it is empty is for local development only, and the settings refuse it in staging and production. |
 | `JWT_SECRET` | At least 32 random characters. Changing it signs everyone out. |
 | `PII_ENCRYPTION_KEYS` | Comma-separated keys. The first encrypts; all of them decrypt. Create one with `uv run python -c "from prefix_api.core.crypto import generate_key; print(generate_key())"`. |
 | `PII_BLIND_INDEX_KEY` | 32 or more random characters. Changing it breaks lookups by phone, e-mail and MRN. |
 | `LLM_MODEL` | The Claude model ID. Required; never hard-coded. |
 | `ANTHROPIC_API_KEY` | For the AI assistant. Without it, questions go straight to a nurse. |
-| `MESSAGING_PROVIDER` | `live` to send. The default `console` only logs, with recipients masked. |
-| `TWILIO_*`, `SMTP_*` | The provider details when `live`. |
+| `MESSAGING_PROVIDER` | `live` to send, refusing to start without Twilio. The default `auto` sends only when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` are set, and otherwise logs with recipients masked ("demo mode", shown in the staff app). `console` always logs. |
+| `TWILIO_*`, `SMTP_*` | The provider details. `TWILIO_WHATSAPP_FROM` is the WhatsApp sender if it is not the SMS number. |
 | `PUBLIC_API_BASE_URL` | The public HTTPS address of the API, for the Twilio webhook. |
 | `WEB_BASE_URL` | The public HTTPS address of the web app, for links in messages. |
 | `CORS_ORIGINS` | The web app's origin only. |

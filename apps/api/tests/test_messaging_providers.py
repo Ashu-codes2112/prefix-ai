@@ -11,7 +11,9 @@ from prefix_api.services.messaging.providers import (
     ChannelRouter,
     ConsoleProvider,
     SmtpProvider,
-    TwilioProvider,
+    TwilioMessages,
+    TwilioSMSProvider,
+    TwilioWhatsAppProvider,
     UnavailableProvider,
     build_messaging_provider,
     twilio_signature,
@@ -21,7 +23,12 @@ from prefix_api.services.messaging.providers import (
 SMS = OutboundMessage(channel=MessageChannel.SMS, to="+919800000001", body="Clear liquids only")
 
 
-def _twilio(handler: Any, **overrides: Any) -> tuple[TwilioProvider, list[httpx2.Request]]:
+def _twilio(
+    handler: Any,
+    *,
+    sms_from: str | None = "+15550001111",
+    whatsapp_from: str | None = "+15550002222",
+) -> tuple[ChannelRouter, list[httpx2.Request]]:
     seen: list[httpx2.Request] = []
 
     def record(request: httpx2.Request) -> httpx2.Response:
@@ -29,15 +36,15 @@ def _twilio(handler: Any, **overrides: Any) -> tuple[TwilioProvider, list[httpx2
         result: httpx2.Response = handler(request)
         return result
 
-    options: dict[str, Any] = {
-        "account_sid": "AC123",
-        "auth_token": "secret",
-        "sms_from": "+15550001111",
-        "whatsapp_from": "+15550002222",
-        **overrides,
-    }
     client = httpx2.Client(transport=httpx2.MockTransport(record))
-    return TwilioProvider(client=client, **options), seen
+    api = TwilioMessages(account_sid="AC123", auth_token="secret", client=client)
+    router = ChannelRouter(
+        {
+            MessageChannel.SMS: TwilioSMSProvider(api, sender=sms_from),
+            MessageChannel.WHATSAPP: TwilioWhatsAppProvider(api, sender=whatsapp_from),
+        }
+    )
+    return router, seen
 
 
 def test_console_provider_never_logs_the_body(caplog: pytest.LogCaptureFixture) -> None:
@@ -96,10 +103,25 @@ def test_twilio_network_errors_become_messaging_errors() -> None:
 
 
 def test_twilio_without_sender_number_fails_clearly() -> None:
-    provider, _ = _twilio(lambda _: httpx2.Response(201, json={}), whatsapp_from=None)
+    provider, _ = _twilio(
+        lambda _: httpx2.Response(201, json={}), sms_from=None, whatsapp_from=None
+    )
 
     with pytest.raises(MessagingError, match="WHATSAPP_FROM"):
         provider.send(OutboundMessage(channel=MessageChannel.WHATSAPP, to="+91", body="x"))
+    with pytest.raises(MessagingError, match="TWILIO_FROM_NUMBER"):
+        provider.send(SMS)
+
+
+def test_the_whatsapp_sandbox_sender_is_not_prefixed_twice() -> None:
+    provider, seen = _twilio(
+        lambda _: httpx2.Response(201, json={"sid": "SM3"}), whatsapp_from="whatsapp:+14155238886"
+    )
+
+    provider.send(OutboundMessage(channel=MessageChannel.WHATSAPP, to="+919800000001", body="x"))
+
+    form = parse_qs(seen[0].content.decode())
+    assert form["From"] == ["whatsapp:+14155238886"]
 
 
 class FakeSMTP:
@@ -163,27 +185,76 @@ def test_router_picks_the_provider_by_channel() -> None:
         router.send(OutboundMessage(channel=MessageChannel.WHATSAPP, to="+1", body="x"))
 
 
-def test_factory_selects_console_or_live() -> None:
-    assert isinstance(build_messaging_provider(make_test_settings()), ConsoleProvider)
-    live = build_messaging_provider(
-        make_test_settings(
-            messaging_provider="live",
-            twilio_account_sid="AC1",
-            twilio_auth_token="tok",
-            twilio_sms_from="+15550001111",
-        )
+TWILIO = {
+    "twilio_account_sid": "AC1",
+    "twilio_auth_token": "tok",
+    "twilio_from_number": "+15550001111",
+}
+
+
+def test_without_twilio_credentials_messaging_falls_back_to_demo_mode() -> None:
+    settings = make_test_settings()
+
+    assert settings.messaging_provider == "auto"
+    assert settings.messaging_live is False
+    assert isinstance(build_messaging_provider(settings), ConsoleProvider)
+
+
+def test_with_twilio_credentials_messaging_goes_live_by_itself() -> None:
+    settings = make_test_settings(**TWILIO)
+
+    assert settings.messaging_live is True
+    assert isinstance(build_messaging_provider(settings), ChannelRouter)
+    # The WhatsApp sender defaults to the SMS number.
+    assert settings.whatsapp_sender == "+15550001111"
+
+
+def test_console_keeps_messages_in_the_log_even_with_credentials() -> None:
+    settings = make_test_settings(messaging_provider="console", **TWILIO)
+
+    assert settings.messaging_live is False
+    assert isinstance(build_messaging_provider(settings), ConsoleProvider)
+
+
+def test_the_older_sms_sender_name_still_works() -> None:
+    settings = make_test_settings(
+        twilio_account_sid="AC1", twilio_auth_token="tok", twilio_sms_from="+15550009999"
     )
-    assert isinstance(live, ChannelRouter)
+
+    assert settings.sms_sender == "+15550009999"
+    assert settings.messaging_live is True
 
 
 def test_live_messaging_requires_twilio_credentials() -> None:
     with pytest.raises(ValueError, match="TWILIO_ACCOUNT_SID"):
         make_test_settings(messaging_provider="live")
+    with pytest.raises(ValueError, match="TWILIO_FROM_NUMBER"):
+        make_test_settings(
+            messaging_provider="live", twilio_account_sid="AC1", twilio_auth_token="tok"
+        )
+
+
+def test_the_postgres_celery_broker_is_for_development_only() -> None:
+    assert make_test_settings().celery_uses_postgres is True
+    assert make_test_settings(redis_url="redis://localhost:6379/0").celery_uses_postgres is False
+    assert (
+        make_test_settings(
+            redis_url="redis://localhost:6379/0", celery_broker="postgres"
+        ).celery_uses_postgres
+        is True
+    )
+    with pytest.raises(ValueError, match="REDIS_URL"):
+        make_test_settings(app_env="staging", redis_url=None)
+    with pytest.raises(ValueError, match="CELERY_BROKER=redis needs REDIS_URL"):
+        make_test_settings(celery_broker="redis")
 
 
 def test_empty_optional_settings_count_as_unset() -> None:
-    settings = make_test_settings(smtp_host="", twilio_auth_token="", anthropic_api_key="")
+    settings = make_test_settings(
+        smtp_host="", twilio_auth_token="", anthropic_api_key="", redis_url=""
+    )
 
+    assert settings.redis_url is None
     assert settings.smtp_host is None
     assert settings.twilio_auth_token is None
     assert settings.anthropic_api_key is None
