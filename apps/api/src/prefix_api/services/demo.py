@@ -35,6 +35,7 @@ from prefix_api.db.models import (
     PatientTimelineEvent,
     PrepStep,
     ProcedureType,
+    StaffNotification,
     Task,
     User,
 )
@@ -51,6 +52,7 @@ from prefix_api.domain.enums import (
     StaffNotificationKind,
     TaskStatus,
     TaskType,
+    TimelineEventStatus,
 )
 from prefix_api.domain.errors import AuthenticationError, NotFoundError, PermissionDeniedError
 from prefix_api.domain.permissions import Permission
@@ -652,6 +654,57 @@ def reset_demo_for(
     return populate_demo(session_factory, now=now, admin_password=new_admin_password())
 
 
+def _demo_ready(
+    session: Session, org_id: uuid.UUID, patients: list[Patient], *, now: dt.datetime
+) -> list[Patient]:
+    """The patients the demo works best with, falling back step by step to everyone.
+
+    The demo raises a problem with a step, asks a question and asks to reschedule. So it needs
+    a step still waiting for confirmation (a fully prepared patient has none to report), and
+    no reschedule request already open (the portal offers only one). A patient who has not
+    raised anything yet keeps the staff screens easy to follow.
+    """
+    open_steps = set(
+        session.scalars(
+            select(PatientTimelineEvent.patient_id)
+            .join(PrepStep, PrepStep.id == PatientTimelineEvent.step_id)
+            .join(Appointment, Appointment.id == PatientTimelineEvent.appointment_id)
+            .where(
+                PatientTimelineEvent.organization_id == org_id,
+                PrepStep.requires_confirmation.is_(True),
+                PatientTimelineEvent.status.not_in(
+                    [
+                        TimelineEventStatus.CONFIRMED,
+                        TimelineEventStatus.CANCELLED,
+                        TimelineEventStatus.SKIPPED,
+                    ]
+                ),
+                Appointment.scheduled_at > now,
+            )
+        )
+    )
+    waiting = set(
+        session.scalars(
+            select(Task.patient_id).where(
+                Task.organization_id == org_id,
+                Task.type == TaskType.RESCHEDULE,
+                Task.status.in_([TaskStatus.OPEN, TaskStatus.IN_PROGRESS]),
+            )
+        )
+    )
+    raised = set(
+        session.scalars(
+            select(StaffNotification.patient_id).where(StaffNotification.organization_id == org_id)
+        )
+    )
+    tiers = (
+        [p for p in patients if p.id in open_steps and p.id not in waiting | raised],
+        [p for p in patients if p.id in open_steps and p.id not in waiting],
+        [p for p in patients if p.id not in waiting],
+    )
+    return next((tier for tier in tiers if tier), patients)
+
+
 def demo_patient_link(
     session: Session,
     settings: Settings,
@@ -694,18 +747,7 @@ def demo_patient_link(
     )
     if not patients:
         raise NotFoundError(f"No demo patient speaks '{language}'")
-    # Someone who already asked to reschedule cannot ask again, so the demo's "I need to
-    # reschedule" step would be missing. Prefer patients without an open request.
-    waiting = set(
-        session.scalars(
-            select(Task.patient_id).where(
-                Task.organization_id == org.id,
-                Task.type == TaskType.RESCHEDULE,
-                Task.status.in_([TaskStatus.OPEN, TaskStatus.IN_PROGRESS]),
-            )
-        )
-    )
-    patient = secrets.choice([p for p in patients if p.id not in waiting] or patients)
+    patient = secrets.choice(_demo_ready(session, org.id, patients, now=now))
     principal = StaffPrincipal(user_id=guest.id, organization_id=org.id, role=Role.DEMO_VIEWER)
     issued = PatientAccessService(session, settings).issue_magic_link(
         principal, patient.id, now=now
