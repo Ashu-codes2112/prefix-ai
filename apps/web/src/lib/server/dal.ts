@@ -6,6 +6,7 @@ import type {
   Drawer,
   EscalationItem,
   Me,
+  MessagingStatus,
   PatientSummary,
   ProcedureType,
   Protocol,
@@ -168,6 +169,18 @@ export const getBadges = cache(async (): Promise<Badges> => {
     throw error;
   }
 });
+
+/** Whether messages really go out. Null if the API cannot say, so no badge is shown. */
+export const getMessagingStatus = cache(
+  async (): Promise<MessagingStatus | null> => {
+    try {
+      return await guarded(api<MessagingStatus>("/messaging/status"));
+    } catch (error) {
+      if (error instanceof ApiError) return null;
+      throw error;
+    }
+  },
+);
 
 /** What patients raised, newest first, for the bell (audited by the API). */
 export function getStaffNotifications(): Promise<StaffNotificationFeed> {

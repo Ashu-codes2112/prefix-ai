@@ -16,6 +16,7 @@ from prefix_api.domain.enums import (
     CheckInResponse,
     CheckInStatus,
     EscalationSeverity,
+    MessageChannel,
     MessageDirection,
     TaskType,
     TimelineEventStatus,
@@ -75,6 +76,25 @@ def test_yes_confirms_the_step(
     )
     assert inbound is not None
     assert inbound.body == "Yes!"
+
+
+def test_a_whatsapp_yes_answers_the_pending_check_in(
+    client: TestClient, build: Builder, db_session: Session, session_factory: sessionmaker[Session]
+) -> None:
+    booked = sent_check_in(build, db_session, session_factory, "Arrange escort")
+
+    # Twilio sends WhatsApp senders as "whatsapp:+<number>".
+    assert reply(client, "YES", sender=f"whatsapp:{PHONE}") == 200
+
+    check_in = check_in_for(db_session, booked, "Arrange escort")
+    assert check_in.response is CheckInResponse.YES
+    inbound = db_session.scalar(
+        select(Message).where(
+            Message.patient_id == booked.patient.id, Message.direction == MessageDirection.INBOUND
+        )
+    )
+    assert inbound is not None
+    assert inbound.channel is MessageChannel.WHATSAPP
 
 
 def test_hindi_yes_is_understood(
@@ -170,10 +190,22 @@ def live_client(session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
         messaging_provider="live",
         twilio_account_sid="AC1",
         twilio_auth_token="tok",
+        twilio_from_number="+15550001111",
         public_api_base_url="https://api.example.com",
     )
     with TestClient(create_app(settings, session_factory=session_factory)) as client:
         yield client
+
+
+def test_twilio_values_alone_make_webhooks_check_signatures(
+    session_factory: sessionmaker[Session],
+) -> None:
+    # MESSAGING_PROVIDER=auto (the default) goes live once Twilio is configured.
+    settings = make_test_settings(
+        twilio_account_sid="AC1", twilio_auth_token="tok", twilio_from_number="+15550001111"
+    )
+    with TestClient(create_app(settings, session_factory=session_factory)) as client:
+        assert reply(client, "YES", **{"X-Twilio-Signature": "forged"}) == 401
 
 
 def test_live_webhooks_require_a_valid_twilio_signature(

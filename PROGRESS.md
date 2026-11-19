@@ -4,11 +4,11 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 
 ## Resume point
 
-**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, and demo parity v1.4.0 on 2026-11-17 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
+**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, and real messaging v1.5.0 on 2026-11-19 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
 **Goal:** demo-ready v1.0.0 as fast as possible, without weakening the safety rules. Speed rules: related tests while developing, full suite once per plan item, Playwright once per phase, pre-commit on changed files, push after each item, wait for CI only before merging into main. About 60–90 minutes per phase. A problem that takes over 15 minutes is logged under "Known issues" and skipped.
 **Road to v2.0.0** (one branch per part, `part-<n>-<name>`; merge after green CI; tag a minor version per part, then `v2.0.0`):
 - [x] Part 1 — Demo parity (`v1.4.0`).
-- [ ] Part 2 — Real messaging: Twilio SMS and WhatsApp providers from `TWILIO_*` env vars, falling back to the console provider with "Messaging: demo mode" in the staff UI; the demo never sends, except an admin-only, rate-limited, audited "Send test reminder to my phone"; inbound webhook with Twilio signature validation, YES/NO/HELP linked to the pending check-in; Celery worker and beat easy to run on Windows without Docker (documented).
+- [x] Part 2 — Real messaging (`v1.5.0`).
 - [ ] Parts 3 and later: the owner's request was cut off after Part 2. Ask for the rest before starting them.
 
 **Known gaps before a real hospital goes live** (details in [docs/COMPLIANCE.md](docs/COMPLIANCE.md)): no retention schedule or erasure job; no subject-access export; no breach-notification workflow; no first-admin command for a real hospital (the seed creates demonstration data only); vendor agreements (Twilio, SMTP, Anthropic) are the hospital's to sign.
@@ -220,3 +220,11 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   - `E2E_API_PORT` moves the Playwright API off port 8000 when another app uses it.
   **Known issue:**
   - The API sees the web server's address for every visitor (no `X-Forwarded-For`), so per-client rate limits are shared by all visitors and audit entries record the web server as "from where". The guest allowance is now 60 sign-ins per 10 minutes, sized for a class. The fix is to forward the visitor's address and trust it only from the web server.
+- [x] **Part 2 — Real messaging** · 2026-11-19 · `v1.5.0` · branch `part-2-real-messaging`
+  Twilio from the environment: `MESSAGING_PROVIDER=auto` (the new default) sends through separate Twilio SMS and WhatsApp providers once `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` are set (WhatsApp sandbox via `TWILIO_WHATSAPP_FROM`), and otherwise falls back to the console with "Messaging: demo mode" in the staff top bar. The Demo Hospital never sends, except an admin-only "Send test reminder to my phone" (three an hour, audited, number not stored). Inbound webhooks check Twilio signatures whenever messaging is live; YES/NO/HELP by SMS or WhatsApp answer the pending check-in. `scripts/dev_worker.py` runs the Celery worker (`--pool=solo`) and beat on Windows; without Redis they use PostgreSQL as broker and result backend (dev only, refused in staging and production).
+  Verified: 556 pytest, 145 Vitest, 18 Playwright, ruff, mypy, ESLint, tsc and Prettier clean. Checked by hand: a reminder due at 09:00:29 went out at 09:00:32 over the PostgreSQL broker through the console provider and showed in the patient's Updates. CI result is recorded at merge.
+  **Notes:**
+  - Celery's own command line reads a `CELERY_BROKER` environment variable as its broker URL. Put `CELERY_BROKER` in `.env`, not the shell; `scripts/dev_worker.py` passes the choice to its processes as `PREFIX_CELERY_BROKER`.
+  - The launcher creates the broker and result tables before starting the worker and beat: left to them, both create the tables at once and one stops with a duplicate-table error.
+  - `REDIS_URL` is now optional and required only outside development. The test settings pin the messaging and broker values, so a developer's `.env` cannot change a test.
+  - Twilio itself was not called from this machine (no account values here). The providers are covered by tests against a mocked Twilio API, and the admin test message is the way to check a real account.

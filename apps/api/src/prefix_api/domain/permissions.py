@@ -25,6 +25,8 @@ class Permission(StrEnum):
     MESSAGE_SEND = "message:send"
     # Approve or decline a patient's reschedule request (approving moves the procedure).
     REQUEST_ANSWER = "request:answer"
+    # Send one test message to a number the admin types (admins only: ADMIN has every one).
+    MESSAGING_TEST = "messaging:test"
 
 
 _P = Permission

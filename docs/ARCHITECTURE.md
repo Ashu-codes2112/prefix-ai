@@ -163,7 +163,10 @@ Implemented in `apps/api/src/prefix_api/db/models/` (migration `0002`). Every te
 - **Dispatch** (`services/dispatch.py`, Celery beat every 60 s). Due events are claimed with `FOR UPDATE SKIP LOCKED` (PENDING → SENDING) and sent one per transaction.
   - The Message row is written before the provider call, and a partial unique index allows only one outbound message per event. An interrupted send is marked FAILED rather than retried, so a patient is never messaged twice.
   - Sending requires messaging consent and a contact for the preferred channel. Reminder text comes only from the approved step.
-- **Providers** (`services/messaging/`): Console (development), Twilio SMS and WhatsApp, SMTP email, selected by `MESSAGING_PROVIDER`.
+- **Providers** (`services/messaging/`): Console, Twilio SMS and Twilio WhatsApp (one Messages API client), SMTP email.
+  - `MESSAGING_PROVIDER=auto` (the default) uses Twilio once `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` are set, and the console otherwise ("demo mode", shown in the staff app via `GET /messaging/status`). `console` always logs; `live` refuses to start without Twilio.
+  - The Demo Hospital's patients always get the console. The one exception is `POST /messaging/test`, which is admin-only (`MESSAGING_TEST`). It sends one fixed message through the real provider to a number the admin types, three times an hour at most. Each attempt is audited with its outcome, and the number is not stored.
+- **Broker.** Celery uses Redis. For local development without it (`REDIS_URL` empty, or `CELERY_BROKER=postgres`), kombu's SQLAlchemy transport and Celery's database result backend run in a separate `<name>_celery` database, started by `scripts/dev_worker.py`. Staging and production refuse that broker.
 - **Translation** (`services/translation.py`, `services/step_translations.py`): Claude translates only approved step text (no PHI) into the patient's language.
   - Each step is translated once per language and cached in `prep_step_translation`. Dispatch reads and fills the cache, and a Beat job pre-translates steps for the next 14 days' non-English patients every 10 minutes.
   - The approved original is stored next to every translated message. Any error, refusal, implausible output, or output that loses the title/instruction shape means the original is used instead.

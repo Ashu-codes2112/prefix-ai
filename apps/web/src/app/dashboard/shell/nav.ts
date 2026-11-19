@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ListChecks,
   type LucideIcon,
+  MessageSquareText,
   Upload,
   Users,
 } from "lucide-react";
@@ -73,7 +74,14 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Admin",
-    items: [{ href: "/dashboard/imports", label: "Import", icon: Upload }],
+    items: [
+      { href: "/dashboard/imports", label: "Import", icon: Upload },
+      {
+        href: "/dashboard/messaging",
+        label: "Messaging",
+        icon: MessageSquareText,
+      },
+    ],
   },
 ];
 

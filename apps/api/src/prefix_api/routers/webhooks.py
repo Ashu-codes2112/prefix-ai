@@ -21,7 +21,7 @@ async def twilio_inbound(
     form = await request.form()
     params = {key: str(value) for key, value in form.items()}
 
-    if settings.messaging_provider == "live":
+    if settings.messaging_live:
         token = settings.twilio_auth_token.get_secret_value() if settings.twilio_auth_token else ""
         url = f"{str(settings.public_api_base_url).rstrip('/')}/webhooks/twilio"
         signature = request.headers.get("X-Twilio-Signature", "")

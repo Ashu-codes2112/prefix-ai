@@ -105,8 +105,7 @@ make setup                  # uv sync, pnpm install, and git pre-commit hooks
 docker compose up -d postgres redis
 
 uv run uvicorn prefix_api.main:create_app --factory --reload --port 8000
-uv run celery --app prefix_worker.celery_app worker --loglevel INFO --pool solo   # --pool solo on Windows
-uv run celery --app prefix_worker.celery_app beat --loglevel INFO
+uv run python scripts/dev_worker.py   # Celery worker (--pool solo) and beat together
 pnpm dev                    # web app on http://localhost:3000
 ```
 
@@ -144,16 +143,20 @@ Python tests run against a real PostgreSQL with pgvector. Start one with `docker
 
 ## Reminders and messaging
 
-Booking an appointment (`POST /appointments`) builds the patient's prep timeline from the approved protocol. The `celery-beat` service runs the reminder dispatcher every minute. With `MESSAGING_PROVIDER=console` (the default), reminders are only logged, with the recipient masked. Set `MESSAGING_PROVIDER=live` plus the Twilio and SMTP values in `.env` to really send. Point your Twilio number's incoming-message webhook to `<PUBLIC_API_BASE_URL>/webhooks/twilio`. Patients must have messaging consent recorded before anything is sent.
+Booking an appointment (`POST /appointments`) builds the patient's prep timeline from the approved protocol. The `celery-beat` service runs the reminder dispatcher every minute. Patients must have messaging consent recorded before anything is sent.
 
-Without Docker, run the worker and scheduler in two more terminals:
+- **Demo mode (the default).** Without Twilio values, reminders are only logged, with the recipient masked. The staff app shows **Messaging: demo mode** in the top bar.
+- **Real SMS and WhatsApp.** Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` in `.env`, and messages go out through Twilio (`MESSAGING_PROVIDER=auto`). For Twilio's WhatsApp sandbox, also set `TWILIO_WHATSAPP_FROM=+14155238886`; each recipient first sends the sandbox's join code to that number. `MESSAGING_PROVIDER=console` keeps demo mode even with the values set.
+- **Replies.** Point the Twilio number's incoming-message webhook at `<PUBLIC_API_BASE_URL>/webhooks/twilio`. Requests are checked against Twilio's signature, and YES, NO and HELP answer the patient's pending check-in.
+- **The Demo Hospital never sends** to its made-up patients. The one exception: an admin can open **Admin → Messaging** and press **Send test reminder to my phone**. That sends one fixed message to the number they type, at most three an hour, and each attempt is audited.
+
+Without Docker, run the worker and scheduler in one more terminal:
 
 ```powershell
-uv run celery --app prefix_worker.celery_app worker --loglevel INFO --pool solo
-uv run celery --app prefix_worker.celery_app beat --loglevel INFO
+uv run python scripts/dev_worker.py
 ```
 
-These need Redis at `REDIS_URL`.
+With Redis at `REDIS_URL` they use it. Without Redis (leave `REDIS_URL` empty, or set `CELERY_BROKER=postgres` in `.env`), they use PostgreSQL as the broker instead. This is for local development only. See [docs/LOCAL_DEV.md](docs/LOCAL_DEV.md#reminders-the-worker-and-beat-on-windows).
 
 ## Patient portal
 

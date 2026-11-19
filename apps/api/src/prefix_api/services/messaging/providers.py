@@ -40,39 +40,21 @@ class ConsoleProvider:
         return SendResult(provider=self.name, provider_message_id=f"console-{uuid.uuid4().hex}")
 
 
-class TwilioProvider:
-    """SMS and WhatsApp through Twilio's REST API."""
-
-    name = "twilio"
+class TwilioMessages:
+    """Twilio's Messages API (one POST per message), shared by the SMS and WhatsApp providers."""
 
     def __init__(
-        self,
-        *,
-        account_sid: str,
-        auth_token: str,
-        sms_from: str | None,
-        whatsapp_from: str | None,
-        client: httpx2.Client | None = None,
+        self, *, account_sid: str, auth_token: str, client: httpx2.Client | None = None
     ) -> None:
         self._account_sid = account_sid
         self._auth_token = auth_token
-        self._sms_from = sms_from
-        self._whatsapp_from = whatsapp_from
         self._client = client or httpx2.Client(timeout=15.0)
 
-    def send(self, message: OutboundMessage) -> SendResult:
-        if message.channel is MessageChannel.WHATSAPP:
-            if not self._whatsapp_from:
-                raise MessagingError("TWILIO_WHATSAPP_FROM is not configured")
-            sender, recipient = f"whatsapp:{self._whatsapp_from}", f"whatsapp:{message.to}"
-        else:
-            if not self._sms_from:
-                raise MessagingError("TWILIO_SMS_FROM is not configured")
-            sender, recipient = self._sms_from, message.to
+    def post(self, *, sender: str, recipient: str, body: str) -> SendResult:
         try:
             response = self._client.post(
                 f"{TWILIO_API}/Accounts/{self._account_sid}/Messages.json",
-                data={"From": sender, "To": recipient, "Body": message.body},
+                data={"From": sender, "To": recipient, "Body": body},
                 auth=(self._account_sid, self._auth_token),
             )
         except httpx2.HTTPError as exc:
@@ -80,7 +62,42 @@ class TwilioProvider:
         if response.status_code >= 400:
             raise MessagingError(f"Twilio rejected the message (HTTP {response.status_code})")
         sid = response.json().get("sid")
-        return SendResult(provider=self.name, provider_message_id=str(sid) if sid else None)
+        return SendResult(provider="twilio", provider_message_id=str(sid) if sid else None)
+
+
+class TwilioSMSProvider:
+    """SMS from TWILIO_FROM_NUMBER."""
+
+    name = "twilio"
+
+    def __init__(self, api: TwilioMessages, *, sender: str | None) -> None:
+        self._api = api
+        self._sender = sender
+
+    def send(self, message: OutboundMessage) -> SendResult:
+        if not self._sender:
+            raise MessagingError("TWILIO_FROM_NUMBER is not configured")
+        return self._api.post(sender=self._sender, recipient=message.to, body=message.body)
+
+
+class TwilioWhatsAppProvider:
+    """WhatsApp from TWILIO_WHATSAPP_FROM (or the SMS number). Works with Twilio's sandbox,
+    where the sender is +14155238886 and each recipient first joins the sandbox."""
+
+    name = "twilio"
+
+    def __init__(self, api: TwilioMessages, *, sender: str | None) -> None:
+        self._api = api
+        self._sender = sender
+
+    def send(self, message: OutboundMessage) -> SendResult:
+        if not self._sender:
+            raise MessagingError("TWILIO_WHATSAPP_FROM is not configured")
+        return self._api.post(
+            sender=f"whatsapp:{self._sender.removeprefix('whatsapp:')}",
+            recipient=f"whatsapp:{message.to.removeprefix('whatsapp:')}",
+            body=message.body,
+        )
 
 
 class SmtpProvider:
@@ -145,16 +162,16 @@ class ChannelRouter:
 
 
 def build_messaging_provider(settings: Settings) -> MessagingProvider:
-    if settings.messaging_provider == "console":
+    """Twilio for SMS and WhatsApp (and SMTP for email) when messaging is live; otherwise the
+    console, which logs that a message would go out ("demo mode")."""
+    if not settings.messaging_live:
         return ConsoleProvider()
 
-    twilio: MessagingProvider = TwilioProvider(
+    api = TwilioMessages(
         account_sid=settings.twilio_account_sid or "",
         auth_token=settings.twilio_auth_token.get_secret_value()
         if settings.twilio_auth_token
         else "",
-        sms_from=settings.twilio_sms_from,
-        whatsapp_from=settings.twilio_whatsapp_from,
     )
     email: MessagingProvider
     if settings.smtp_host and settings.smtp_from:
@@ -170,8 +187,8 @@ def build_messaging_provider(settings: Settings) -> MessagingProvider:
         email = UnavailableProvider("SMTP is not configured")
     return ChannelRouter(
         {
-            MessageChannel.SMS: twilio,
-            MessageChannel.WHATSAPP: twilio,
+            MessageChannel.SMS: TwilioSMSProvider(api, sender=settings.sms_sender),
+            MessageChannel.WHATSAPP: TwilioWhatsAppProvider(api, sender=settings.whatsapp_sender),
             MessageChannel.EMAIL: email,
         }
     )
