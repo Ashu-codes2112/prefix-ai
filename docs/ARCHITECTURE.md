@@ -199,13 +199,14 @@ Implemented in `apps/api/src/prefix_api/db/models/` (migration `0002`). Every te
 - **Languages and accessibility.** The portal's own text is in English and Hindi, and the patient's choice is remembered. Steps show the cached translation, or the approved English text with a notice. The portal is mobile-first, with large type, 48 px tap targets, and states shown by icon and word as well as colour. It is server-rendered, with client JS only for the action buttons. A PWA manifest lets patients add it to the home screen, and an emergency notice is always shown.
 - **Tests.** Playwright runs on a phone viewport against the real API and Postgres, including axe WCAG 2.2 AA scans. It runs in CI (`e2e` job) and locally with `make e2e`.
 
-## 8. Integrations (CSV import)
+## 8. Integrations (CSV import, FHIR R4, webhooks)
 
 - **Route.** `POST /imports/patients` and `POST /imports/appointments` (`routers/imports.py`), with `dry_run` on by default.
 - **Parsing.** `domain/csv_import.py` is pure: it matches headers to fields, applies the mapping, lists ignored columns and enforces the 1 MB and 500-row caps.
 - **Rows.** `services/imports.py` runs every row through `PatientService` or `AppointmentService` in its own savepoint. A bad row is reported and undone while the others continue. A dry run rolls the whole import back, and a commit happens only when every row is valid.
 - **Errors.** Reports carry the line, the column and a rule, never a cell value. A committed import writes one `import` audit row, and each matched patient is audited as a read.
-- **Future.** FHIR R4 resources are planned after v1.0.0 (see `docs/INTEGRATIONS.md`).
+- **FHIR R4.** `domain/fhir.py` reads resources into plain records and condition flags, with no I/O. `services/fhir/client.py` searches incrementally, pages and retries. `services/fhir/sync.py` applies each record in its own savepoint, moves per-type cursors, books through `AppointmentService` as a `SystemPrincipal`, and only ever switches flags on. `services/integrations.py` covers health, set-up and sync now. The worker runs `prefix_worker.fhir.sync` every 15 minutes. `services/fhir/fixture_server.py` serves synthetic fixtures for tests and `scripts/fhir_mock_server.py`.
+- **Webhooks.** `services/webhooks.py` listens to every session's `before_flush`. A changed `Appointment.status` writes a `webhook_delivery` row (an outbox) for each enabled endpoint in the same transaction. `prefix_worker.webhooks.deliver` posts the rows with an HMAC-SHA256 signature, row-locked (`SKIP LOCKED`), with backoff.
 
 ## 9. Staff notifications
 

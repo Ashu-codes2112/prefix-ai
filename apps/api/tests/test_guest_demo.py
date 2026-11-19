@@ -24,7 +24,7 @@ from prefix_api.db.models import (
     Task,
     User,
 )
-from prefix_api.domain.enums import ProtocolStatus, Role, TaskStatus, TaskType
+from prefix_api.domain.enums import ProtocolStatus, Role, TaskStatus, TaskType, TimelineEventStatus
 from prefix_api.main import create_app
 from prefix_api.routers.auth import GUEST_LOGINS_PER_WINDOW
 from prefix_api.seed import DEMO_ORG_SLUG
@@ -256,6 +256,45 @@ def test_the_patient_demo_skips_patients_who_already_asked_to_reschedule(
         )
         for p in asked
     )
+    db_session.commit()
+    headers = guest_headers(client)
+
+    names = {
+        client.post("/demo/patient-link", headers=headers, params={"lang": "en"}).json()[
+            "patient_name"
+        ]
+        for _ in range(5)
+    }
+
+    assert names == {f"{free.first_name} {free.last_name}"}
+
+
+def test_the_patient_demo_skips_patients_with_every_step_confirmed(
+    client: TestClient, db_session: Session, demo: dict[str, Any]
+) -> None:
+    # Someone fully prepared has no step left to report a problem with.
+    now = dt.datetime.now(dt.UTC)
+    org_id = demo["org"].id
+    upcoming = (
+        select(Appointment.patient_id)
+        .where(Appointment.organization_id == org_id, Appointment.scheduled_at > now)
+        .distinct()
+    )
+    english = list(
+        db_session.scalars(
+            select(Patient)
+            .where(Patient.id.in_(upcoming), Patient.preferred_language == "en")
+            .order_by(Patient.id)
+        )
+    )
+    free, *ready = english
+    for event in db_session.scalars(
+        select(PatientTimelineEvent).where(
+            PatientTimelineEvent.patient_id.in_([p.id for p in ready])
+        )
+    ):
+        event.status = TimelineEventStatus.CONFIRMED
+        event.confirmed_at = now
     db_session.commit()
     headers = guest_headers(client)
 

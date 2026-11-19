@@ -9,12 +9,14 @@ from prefix_api.core.logging import get_logger
 from prefix_api.db.session import SessionFactory, create_db_engine, create_session_factory
 from prefix_api.services.demo import populate_demo
 from prefix_api.services.dispatch import dispatch_due_reminders
+from prefix_api.services.integrations import sync_all
 from prefix_api.services.messaging.base import MessagingProvider
 from prefix_api.services.messaging.providers import build_messaging_provider
 from prefix_api.services.retention import purge_expired
 from prefix_api.services.risk import refresh as refresh_risk
 from prefix_api.services.step_translations import warm_step_translations
 from prefix_api.services.translation import Translator, build_translator
+from prefix_api.services.webhooks import deliver_due
 
 logger = get_logger(__name__)
 
@@ -84,3 +86,18 @@ def purge_expired_records() -> dict[str, int]:
     result = purge_expired(_session_factory(), now=dt.datetime.now(dt.UTC))
     logger.info("retention.purged", **result)
     return result
+
+
+@shared_task(name="prefix_worker.fhir.sync", ignore_result=True)
+def sync_fhir() -> dict[str, int]:
+    """Read what changed in each hospital's EHR since the last run (FHIR R4). Every 15 minutes."""
+    result = sync_all(_session_factory(), now=dt.datetime.now(dt.UTC))
+    logger.info("fhir.synced", **result)
+    return result
+
+
+@shared_task(name="prefix_worker.webhooks.deliver", ignore_result=True)
+def deliver_webhooks() -> dict[str, int]:
+    """Post due appointment-change webhooks, signed; retries back off. Every minute."""
+    result = deliver_due(_session_factory(), now=dt.datetime.now(dt.UTC))
+    return {"delivered": result.delivered, "retrying": result.retrying, "failed": result.failed}

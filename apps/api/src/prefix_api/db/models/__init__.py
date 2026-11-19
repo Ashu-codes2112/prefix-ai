@@ -13,6 +13,12 @@ from prefix_api.db.models.engagement import (
     PatientNotificationRead,
     PatientTimelineEvent,
 )
+from prefix_api.db.models.integrations import (
+    IntegrationConnection,
+    IntegrationSyncRun,
+    WebhookDelivery,
+    WebhookEndpoint,
+)
 from prefix_api.db.models.operations import (
     BackfillOffer,
     Escalation,
@@ -37,6 +43,8 @@ __all__ = [
     "ConsentRecord",
     "Escalation",
     "Facility",
+    "IntegrationConnection",
+    "IntegrationSyncRun",
     "Message",
     "Organization",
     "Patient",
@@ -56,4 +64,6 @@ __all__ = [
     "Task",
     "User",
     "WaitlistEntry",
+    "WebhookDelivery",
+    "WebhookEndpoint",
 ]

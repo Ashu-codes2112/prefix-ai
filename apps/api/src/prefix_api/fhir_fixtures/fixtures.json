@@ -1,0 +1,167 @@
+{
+  "_comment": "Synthetic FHIR R4 resources in the shape a hospital EHR returns them (no real people). Served by prefix_api.services.fhir.fixture_server for tests and scripts/fhir_mock_server.py. Dates are offsets in days from the moment the server starts, so the appointments are always in the future.",
+  "resources": [
+    {
+      "resourceType": "Patient",
+      "id": "pat-1001",
+      "meta": { "lastUpdated": "@-3d" },
+      "identifier": [
+        {
+          "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/v2-0203", "code": "MR" }] },
+          "system": "urn:oid:2.16.356.1.1",
+          "value": "FH-1001"
+        }
+      ],
+      "name": [{ "use": "official", "family": "Sharma", "given": ["Kavya"] }],
+      "telecom": [
+        { "system": "phone", "value": "+919800001001", "use": "mobile" },
+        { "system": "email", "value": "kavya.sharma@example.org" }
+      ],
+      "gender": "female",
+      "birthDate": "1968-04-12",
+      "communication": [{ "language": { "coding": [{ "system": "urn:ietf:bcp:47", "code": "hi-IN" }] } }]
+    },
+    {
+      "resourceType": "Patient",
+      "id": "pat-1002",
+      "meta": { "lastUpdated": "@-3d" },
+      "identifier": [
+        {
+          "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/v2-0203", "code": "MR" }] },
+          "value": "FH-1002"
+        }
+      ],
+      "name": [{ "use": "official", "family": "Iyer", "given": ["Rohan", "K."] }],
+      "telecom": [{ "system": "phone", "value": "+919800001002" }],
+      "gender": "male",
+      "birthDate": "1955-11-30",
+      "communication": [{ "language": { "coding": [{ "code": "en" }] } }]
+    },
+    {
+      "resourceType": "Patient",
+      "id": "pat-1003",
+      "meta": { "lastUpdated": "@-2d" },
+      "name": [{ "family": "Das" }],
+      "birthDate": "1990-01-01"
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "med-1",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "active",
+      "medicationCodeableConcept": {
+        "coding": [{ "system": "http://www.whocc.no/atc", "code": "B01AF02", "display": "apixaban" }],
+        "text": "Apixaban 5 mg twice daily"
+      },
+      "subject": { "reference": "Patient/pat-1001" }
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "med-2",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "active",
+      "medicationCodeableConcept": { "text": "Insulin glargine 20 units at night" },
+      "subject": { "reference": "Patient/pat-1002" }
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "med-3",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "active",
+      "medicationCodeableConcept": {
+        "coding": [{ "system": "http://www.whocc.no/atc", "code": "A10BJ06", "display": "semaglutide" }]
+      },
+      "subject": { "reference": "Patient/pat-1002" }
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "med-4",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "stopped",
+      "medicationCodeableConcept": { "text": "Warfarin 5 mg" },
+      "subject": { "reference": "Patient/pat-1002" }
+    },
+    {
+      "resourceType": "AllergyIntolerance",
+      "id": "alg-1",
+      "meta": { "lastUpdated": "@-2d" },
+      "clinicalStatus": {
+        "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active" }]
+      },
+      "code": {
+        "coding": [{ "system": "http://snomed.info/sct", "code": "293637006", "display": "Allergy to contrast media" }]
+      },
+      "patient": { "reference": "Patient/pat-1001" }
+    },
+    {
+      "resourceType": "AllergyIntolerance",
+      "id": "alg-2",
+      "meta": { "lastUpdated": "@-2d" },
+      "clinicalStatus": { "coding": [{ "code": "active" }] },
+      "code": { "text": "Penicillin" },
+      "patient": { "reference": "Patient/pat-1002" }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-1",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "final",
+      "code": { "coding": [{ "system": "http://loinc.org", "code": "62238-1", "display": "eGFR (CKD-EPI)" }] },
+      "subject": { "reference": "Patient/pat-1001" },
+      "effectiveDateTime": "@-10d",
+      "valueQuantity": { "value": 52, "unit": "mL/min/1.73m2" }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-2",
+      "meta": { "lastUpdated": "@-2d" },
+      "status": "final",
+      "code": { "coding": [{ "system": "http://loinc.org", "code": "2160-0", "display": "Creatinine" }] },
+      "subject": { "reference": "Patient/pat-1002" },
+      "effectiveDateTime": "@-5d",
+      "valueQuantity": { "value": 1.4, "unit": "mg/dL", "code": "mg/dL" }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-3",
+      "meta": { "lastUpdated": "@-1d" },
+      "status": "final",
+      "code": { "coding": [{ "system": "http://loinc.org", "code": "62238-1" }] },
+      "subject": { "reference": "Patient/pat-1001" },
+      "effectiveDateTime": "@-30d",
+      "valueQuantity": { "value": 75, "unit": "mL/min/1.73m2" }
+    },
+    {
+      "resourceType": "Appointment",
+      "id": "appt-1",
+      "meta": { "lastUpdated": "@-1d" },
+      "status": "booked",
+      "serviceType": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "73761001", "display": "Colonoscopy" }] }],
+      "start": "@+6d",
+      "end": "@+6d+45m",
+      "participant": [
+        { "actor": { "reference": "Patient/pat-1001" }, "status": "accepted" },
+        { "actor": { "reference": "Location/loc-endo" }, "status": "accepted" }
+      ]
+    },
+    {
+      "resourceType": "Appointment",
+      "id": "appt-2",
+      "meta": { "lastUpdated": "@-1d" },
+      "status": "booked",
+      "serviceType": [{ "coding": [{ "code": "73761001" }] }],
+      "start": "@+9d",
+      "minutesDuration": 30,
+      "participant": [{ "actor": { "reference": "Patient/pat-1002" } }]
+    },
+    {
+      "resourceType": "Appointment",
+      "id": "appt-3",
+      "meta": { "lastUpdated": "@-1d" },
+      "status": "booked",
+      "serviceType": [{ "coding": [{ "code": "999999" }] }],
+      "start": "@+7d",
+      "participant": [{ "actor": { "reference": "Patient/pat-1002" } }]
+    }
+  ]
+}

@@ -7,7 +7,9 @@ import type {
   ConsentStatus,
   Drawer,
   EscalationItem,
+  FacilityOption,
   Incident,
+  IntegrationHealth,
   Me,
   MessagingStatus,
   PatientSummary,
@@ -282,4 +284,14 @@ export function getRetentionReport(): Promise<RetentionReport> {
 /** Security incidents, newest discovery first. */
 export function listIncidents(): Promise<Incident[]> {
   return guarded(api<Incident[]>("/compliance/incidents"));
+}
+
+/** The FHIR connection's health, its last runs, and webhook endpoints (admins). */
+export function getIntegrationHealth(): Promise<IntegrationHealth> {
+  return guarded(api<IntegrationHealth>("/integrations/health"));
+}
+
+/** The hospital's facilities, for choosing where synced bookings take place. */
+export function listFacilities(): Promise<FacilityOption[]> {
+  return guarded(api<FacilityOption[]>("/admin/facilities"));
 }

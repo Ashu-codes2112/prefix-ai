@@ -1,6 +1,6 @@
 # Integrations
 
-Phase 11 ships CSV import, the quick start for a hospital that has no interface to its scheduling system yet. FHIR R4 is planned future work (see the end of this file).
+Two ways in: CSV import, the quick start for a hospital with no interface to its scheduling system, and an incremental FHIR R4 sync from the hospital's EHR. Appointment changes go back out as signed webhooks.
 
 ## CSV import
 
@@ -47,6 +47,59 @@ An appointment is booked by the same service as a typed booking, so the procedur
 - **Permissions.** Patient imports need the patient write permission and appointment imports need the appointment write permission. Viewers are refused.
 - **Consent is recorded as given.** The consent timestamp is the time of import. The source of the consent, such as a signed form, is not stored, so check it before importing (see `docs/COMPLIANCE.md`, Phase 12).
 
-## Future work: FHIR R4
+## FHIR R4 sync
 
-Planned for after v1.0.0, as CLAUDE.md describes: read and write `Patient`, `Appointment`, `ServiceRequest`, `Procedure` and `MedicationStatement` resources, so that scheduling and medication sync can run without CSV. The import service's validation and per-row savepoints are the parts to reuse; a FHIR adapter would translate each resource into the same typed inputs.
+An admin sets it up on **Admin → Integrations**:
+- the server's base URL, and a bearer token if it needs one (stored encrypted, never shown again);
+- which EHR service codes are which procedures, e.g. `73761001 = COLONOSCOPY`;
+- the facility for synced bookings.
+
+The worker syncs every 15 minutes (`prefix_worker.fhir.sync`), and **Sync now** runs one at once. The page shows:
+- the connection's health: healthy, failing, no recent sync, not synced yet, or off;
+- the last error, if there is one;
+- how far each resource type has been read;
+- the last ten runs, with counts and the reasons any records were skipped.
+
+### What is read, and what it becomes
+
+| FHIR resource | Read | Becomes |
+|---|---|---|
+| `Patient` | official name, `birthDate`, phone and e-mail from `telecom`, the `MR` identifier, `communication` language, `gender` | A patient matched by the EHR's id, then by MRN. Created or updated. **Gender is used only to compute eGFR and is never stored.** A synced patient has **not consented to messages** until staff record it: consent is never inferred from the EHR. |
+| `MedicationStatement` (active, intended, on hold) | medication name or ATC code | `on_anticoagulant` (warfarin, acenocoumarol, DOACs, heparins, fondaparinux, and the antiplatelets clopidogrel, prasugrel and ticagrelor; not aspirin), `diabetic_on_insulin`, `on_glp1_agonist` (semaglutide, liraglutide, dulaglutide, exenatide, lixisenatide, tirzepatide). |
+| `Observation` (final, amended, corrected) | LOINC eGFR codes, or serum creatinine in mg/dL or µmol/L | `egfr_value`. Creatinine alone gives eGFR by the race-free CKD-EPI 2021 equation, from the patient's age and sex. The newest result wins; an older one never replaces it. An unknown unit is never guessed. |
+| `AllergyIntolerance` (active, not refuted) | SNOMED codes or names for iodinated or gadolinium contrast | `has_contrast_allergy`. |
+| `Appointment` | status, `start`, duration, patient, `serviceType` code, Location | A booking through the same service as a coordinator's, so only an approved protocol can build the prep plan (safety rule a). EHR cancellations, no-shows, completions and new times follow. A booking already closed here is not reopened. |
+
+**Conditions are only ever switched on.** A sync can set `on_anticoagulant` but never clears it, even when the EHR stops the medicine: removing a condition from a prep plan is a person's decision. The medication and allergy lists live in `apps/api/src/prefix_api/domain/fhir.py`. The hospital's clinicians must review them, as they review protocols (see `docs/CLINICAL_REVIEW_CHECKLIST.md`).
+
+### How a sync behaves
+
+- **Incremental.** Each resource type is searched with `_lastUpdated=gt<cursor>`, oldest first, following the Bundle's `next` links. A cursor moves only past a type that was read to the end, so a failed run starts again where it stopped.
+- **Retries.** Network errors, 429 and 5xx are retried three times, with backoff and `Retry-After`. Other answers (for example 401) fail the run at once. Errors name the status code, never a response body.
+- **One bad record does not stop the rest.** Each record is applied in its own savepoint. A skipped record is reported by reason and count, for example "Appointment: no procedure type is mapped for its service code (3)", never by value.
+- **Erased patients stay erased.** Erasure keeps a keyed hash of the EHR's id instead of the id itself, so a later sync recognises the patient and skips them instead of bringing their data back.
+- **Audited** as the system job `fhir_sync` (purpose `ehr_sync`), field names only.
+
+### Trying it without an EHR
+
+```bash
+uv run python scripts/fhir_mock_server.py      # http://127.0.0.1:8090/fhir
+```
+
+It serves synthetic, recorded-style fixtures (`apps/api/src/prefix_api/fhir_fixtures/fixtures.json`). Point the Integrations page at `http://127.0.0.1:8090/fhir`, map `73761001 = COLONOSCOPY`, choose a facility and press **Sync now**. The tests run the same fixtures in process (`tests/test_fhir_sync.py`).
+
+## Outbound webhooks
+
+Every appointment status change is posted to each enabled endpoint. That includes scheduled to cancelled, at risk or completed, from any part of the app or from the FHIR sync.
+
+- **Outbox.** The change and its delivery rows are saved in one transaction, so nothing is sent that was not saved, and nothing is lost while a receiver is down. The worker posts due deliveries every minute (`prefix_worker.webhooks.deliver`) and retries after 1 min, 5 min, 30 min, 2 h, 6 h and 12 h, then gives up.
+- **Payload.** Ids, statuses and times only, never names, contact details or notes:
+
+  ```json
+  {"id": "<delivery id>", "type": "appointment.status_changed", "occurred_at": "2026-11-19T10:02:00+00:00",
+   "data": {"appointment_id": "...", "external_id": "appt-1", "status": "CANCELLED",
+            "previous_status": "SCHEDULED", "scheduled_at": "...", "cancellation_reason": "NO_ESCORT"}}
+  ```
+- **Headers.** `X-Prefix-Event`, and `X-Prefix-Delivery` (the same on every retry, so ignore repeats). `X-Prefix-Signature: t=<unix seconds>,v1=<hex>`, where `v1` is HMAC-SHA256 of `"<t>.<raw body>"` under the endpoint's secret. The secret is shown once, when the endpoint is added.
+- **Verifying.** Recompute the HMAC over the raw body, compare in constant time, and reject a `t` more than five minutes old. `prefix_api.services.webhooks.verify_signature` does exactly this.
+- The Demo Hospital never sends webhooks. In production, endpoints and the FHIR server must use https.

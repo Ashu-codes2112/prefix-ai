@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError
 
+# Imported for its side effect: the outbox that turns appointment changes into webhooks.
+import prefix_api.services.webhooks  # noqa: F401
 from prefix_api import __version__
 from prefix_api.api.errors import register_error_handlers
 from prefix_api.core.config import Settings, get_settings
@@ -36,6 +38,7 @@ from prefix_api.routers import (
     escalations,
     health,
     imports,
+    integrations,
     messaging,
     patient_portal,
     patients,
@@ -47,6 +50,7 @@ from prefix_api.routers import (
     webhooks,
 )
 from prefix_api.services.assistant.llm import build_assistant_llm
+from prefix_api.services.integrations import default_client
 from prefix_api.services.messaging.providers import build_messaging_provider
 
 logger = get_logger(__name__)
@@ -101,6 +105,7 @@ def create_app(
     # Shared through Redis when REDIS_URL is set; in this process otherwise.
     app.state.rate_limiter = rate_limiter or build_rate_limiter(settings)
     app.state.messaging_provider = build_messaging_provider(settings)
+    app.state.fhir_client_factory = default_client
 
     register_error_handlers(app)
 
@@ -137,5 +142,6 @@ def create_app(
     app.include_router(messaging.router)
     app.include_router(assistant_status.router)
     app.include_router(compliance.router)
+    app.include_router(integrations.router)
     app.include_router(webhooks.router)
     return app

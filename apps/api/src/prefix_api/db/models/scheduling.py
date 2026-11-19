@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -33,6 +34,8 @@ class ProcedureType(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
 
 class Appointment(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
     __tablename__ = "appointment"
+    # A FHIR sync finds the appointment it booked earlier by the EHR's id.
+    __table_args__ = (Index("ix_appointment_org_external_id", "organization_id", "external_id"),)
 
     patient_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("patient.id", ondelete="RESTRICT"), index=True

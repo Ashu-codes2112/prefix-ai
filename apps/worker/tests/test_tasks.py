@@ -95,6 +95,16 @@ def test_beat_purges_expired_records_nightly() -> None:
     assert "prefix_worker.retention.purge" in celery_app.tasks
 
 
+def test_beat_syncs_fhir_every_15_minutes_and_posts_webhooks_every_minute() -> None:
+    fhir = celery_app.conf.beat_schedule["fhir-sync"]
+    hooks = celery_app.conf.beat_schedule["deliver-webhooks"]
+
+    assert (fhir["task"], fhir["schedule"]) == ("prefix_worker.fhir.sync", 900.0)
+    assert (hooks["task"], hooks["schedule"]) == ("prefix_worker.webhooks.deliver", 60.0)
+    celery_app.loader.import_default_modules()
+    assert {"prefix_worker.fhir.sync", "prefix_worker.webhooks.deliver"} <= set(celery_app.tasks)
+
+
 def test_redis_is_the_broker_and_the_result_backend_when_it_is_set() -> None:
     broker, backend = celery_urls(_settings(redis_url="redis://cache:6379/0"))
 
