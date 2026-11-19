@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from celery import Celery
@@ -34,7 +35,21 @@ def celery_urls(settings: Settings) -> tuple[str, str]:
     return redis, redis
 
 
+# Our CELERY_BROKER setting is a choice (auto, redis or postgres), never a URL. Celery's own
+# command line reads a CELERY_BROKER environment variable as its broker URL and copies it into
+# CELERY_BROKER_URL, which wins over the broker set below. Docker Compose passes every line of
+# .env to the containers, so drop such a copy rather than connect to "amqp://postgres:5672".
+_BROKER_CHOICES = frozenset({"auto", "redis", "postgres"})
+
+
+def _drop_broker_choice_from_cli() -> None:
+    for name in ("CELERY_BROKER_URL", "CELERY_RESULT_BACKEND"):
+        if os.environ.get(name, "").lower() in _BROKER_CHOICES:
+            del os.environ[name]
+
+
 def create_celery_app(settings: Settings) -> Celery:
+    _drop_broker_choice_from_cli()
     broker_url, backend_url = celery_urls(settings)
     app = Celery("prefix_worker", broker=broker_url, backend=backend_url)
     app.conf.update(

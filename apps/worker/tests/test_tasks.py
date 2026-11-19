@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from prefix_api.core.config import Settings
 from prefix_worker.celery_app import (
     DEMO_PING_INTERVAL_SECONDS,
@@ -7,6 +9,7 @@ from prefix_worker.celery_app import (
     TRANSLATION_WARM_INTERVAL_SECONDS,
     celery_app,
     celery_urls,
+    create_celery_app,
 )
 from prefix_worker.tasks import ping
 
@@ -109,3 +112,18 @@ def test_the_launchers_choice_wins_over_dotenv() -> None:
     )
 
     assert broker.startswith("sqla+postgresql+psycopg://")
+
+
+def test_a_broker_choice_copied_in_by_celerys_command_line_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # `celery` reads CELERY_BROKER=postgres as a broker URL and copies it to CELERY_BROKER_URL.
+    monkeypatch.setenv("CELERY_BROKER_URL", "postgres")
+    monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://cache:6379/1")
+
+    app = create_celery_app(_settings(redis_url="redis://cache:6379/0"))
+
+    assert "CELERY_BROKER_URL" not in os.environ
+    assert app.conf.broker_url == "redis://cache:6379/0"
+    # A real URL that someone set on purpose is left alone.
+    assert os.environ["CELERY_RESULT_BACKEND"] == "redis://cache:6379/1"

@@ -73,7 +73,7 @@ This starts the Celery worker (`--pool=solo`, the pool that works on Windows) an
 
 - **Without Redis** (the usual case on Windows), leave `REDIS_URL` empty in `.env`, or set `CELERY_BROKER=postgres`. The worker then uses PostgreSQL as its broker and result backend (kombu's SQLAlchemy transport), in its own database `prefix_dev_celery` on the dev server. The script creates it, and its tables, the first time. The app's database and migrations are untouched.
 - **With Redis** at `REDIS_URL` (and `CELERY_BROKER` unset or `redis`), the worker uses it. The script stops with a hint if Redis is not reachable.
-- **Do not export `CELERY_BROKER` in your shell** when running `celery` yourself: Celery's own command line reads it as a broker URL. Put it in `.env` instead. The script handles this for you.
+- `CELERY_BROKER` works in `.env` or in the environment. Celery's own command line also reads a `CELERY_BROKER` variable, as a broker URL. The worker ignores that copy, since our value is a choice (`auto`, `redis`, `postgres`), never a URL.
 
 This is for development only. Docker Compose, CI and production use Redis, and the settings refuse the PostgreSQL broker in staging and production.
 
