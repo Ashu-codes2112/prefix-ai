@@ -1,6 +1,7 @@
 import type { TokenPair } from "@prefix/shared";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { contentSecurityPolicy, newNonce } from "@/lib/csp";
 import { apiBaseUrl } from "@/lib/server/api";
 import {
   ACCESS_COOKIE,
@@ -38,9 +39,30 @@ function toLogin(request: NextRequest): NextResponse {
   return response;
 }
 
+/** A page response that carries the policy, with the nonce also on the request for Next.js. */
+function withPolicy(request: NextRequest, nonce: string): NextResponse {
+  const policy = contentSecurityPolicy(
+    nonce,
+    process.env.NODE_ENV === "development",
+  );
+  const headers = new Headers(request.headers);
+  headers.set("x-nonce", nonce);
+  headers.set("Content-Security-Policy", policy);
+  const response = NextResponse.next({ request: { headers } });
+  response.headers.set("Content-Security-Policy", policy);
+  return response;
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const nonce = newNonce();
+  if (!request.nextUrl.pathname.startsWith("/dashboard")) {
+    return withPolicy(request, nonce);
+  }
+
   const access = request.cookies.get(ACCESS_COOKIE)?.value;
-  if (access && !accessTokenExpiresSoon(access)) return NextResponse.next();
+  if (access && !accessTokenExpiresSoon(access)) {
+    return withPolicy(request, nonce);
+  }
 
   const refresh = request.cookies.get(REFRESH_COOKIE)?.value;
   if (!refresh) return toLogin(request);
@@ -62,7 +84,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Forward the new tokens to this render (request) and store them in the browser (response).
   request.cookies.set(ACCESS_COOKIE, tokens.access_token);
   request.cookies.set(REFRESH_COOKIE, tokens.refresh_token);
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  const response = withPolicy(request, nonce);
   response.cookies.set(
     ACCESS_COOKIE,
     tokens.access_token,
@@ -77,5 +99,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    // Every page gets the policy; files Next.js serves itself do not need one.
+    {
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest).*)",
+    },
+  ],
 };
