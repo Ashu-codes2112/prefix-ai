@@ -34,6 +34,7 @@ from prefix_api.routers import (
     escalations,
     health,
     imports,
+    messaging,
     patient_portal,
     patients,
     protocols,
@@ -44,6 +45,7 @@ from prefix_api.routers import (
     webhooks,
 )
 from prefix_api.services.assistant.llm import build_assistant_llm
+from prefix_api.services.messaging.providers import build_messaging_provider
 
 logger = get_logger(__name__)
 
@@ -93,6 +95,7 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.assistant_llm = build_assistant_llm(settings)
     app.state.rate_limiter = RateLimiter()
+    app.state.messaging_provider = build_messaging_provider(settings)
 
     register_error_handlers(app)
 
@@ -126,5 +129,6 @@ def create_app(
     app.include_router(requests.router)
     app.include_router(badges.router)
     app.include_router(staff_notifications.router)
+    app.include_router(messaging.router)
     app.include_router(webhooks.router)
     return app

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Badges, Me } from "@prefix/shared";
+import type { Badges, Me, MessagingMode } from "@prefix/shared";
 import { cn } from "cn";
 import {
   Bell,
@@ -26,6 +26,7 @@ import { spring } from "@/lib/motion";
 
 import { type PatientHit, searchPatients } from "./actions";
 import { pageTitle } from "./nav";
+import { MessagingBadge } from "./messaging-badge";
 import { NotificationPanel } from "./notification-panel";
 import { bellLabel } from "./notification-state";
 import { Brand, SidebarNav } from "./sidebar";
@@ -135,11 +136,14 @@ export function TopBar({
   badges,
   canResetDemo,
   canSeeNotifications,
+  messagingMode,
 }: {
   user: Me;
   badges: Badges;
   canResetDemo: boolean;
   canSeeNotifications: boolean;
+  /** "demo" shows a badge: messages are logged, not sent. Null when unknown. */
+  messagingMode: MessagingMode | null;
 }) {
   const pathname = usePathname();
   const { group, title } = pageTitle(pathname);
@@ -182,6 +186,8 @@ export function TopBar({
         />
         <span className="truncate font-semibold">{title}</span>
       </p>
+
+      <MessagingBadge mode={messagingMode} />
 
       <Popover
         title="Find a patient"

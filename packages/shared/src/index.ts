@@ -232,6 +232,27 @@ export interface EscalationItem {
   urgent_reasons: UrgentReason[];
 }
 
+/* Messaging (see apps/api/src/prefix_api/schemas/messaging.py). */
+
+/** "demo": messages are logged, never sent (no Twilio values, or MESSAGING_PROVIDER=console). */
+export type MessagingMode = "live" | "demo";
+
+export interface MessagingStatus {
+  mode: MessagingMode;
+  /** Masked, e.g. "***111"; null when that channel has no sender. */
+  sms_sender: string | null;
+  whatsapp_sender: string | null;
+  /** The Demo Hospital's own patients never get real messages. */
+  demo_hospital: boolean;
+  can_send_test: boolean;
+}
+
+export interface MessagingTestResult {
+  outcome: "sent" | "logged" | "failed";
+  mode: MessagingMode;
+  detail: string;
+}
+
 /* Staff notifications (see apps/api/src/prefix_api/schemas/staff_notifications.py). */
 
 /** Fixed rules, never an LLM (apps/api/src/prefix_api/domain/urgency.py). */

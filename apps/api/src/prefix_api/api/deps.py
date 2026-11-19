@@ -16,6 +16,7 @@ from prefix_api.domain.errors import AuthenticationError
 from prefix_api.domain.permissions import Permission
 from prefix_api.domain.principal import PatientPrincipal, StaffPrincipal
 from prefix_api.services.assistant.llm import AssistantLLM
+from prefix_api.services.messaging.base import MessagingProvider
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -52,6 +53,15 @@ def get_assistant_llm(request: Request) -> AssistantLLM | None:
 
 
 AssistantLLMDep = Annotated[AssistantLLM | None, Depends(get_assistant_llm)]
+
+
+def get_messaging_provider(request: Request) -> MessagingProvider:
+    """Built once per app: Twilio when messaging is live, the console in demo mode."""
+    provider: MessagingProvider = request.app.state.messaging_provider
+    return provider
+
+
+MessagingProviderDep = Annotated[MessagingProvider, Depends(get_messaging_provider)]
 # scope="function": commit BEFORE the response is sent, so a failed commit (including
 # its audit rows) can never be reported to the client as success.
 DbSession = Annotated[Session, Depends(get_db, scope="function")]

@@ -6,6 +6,7 @@ import {
   canSeeNotifications,
   getBadges,
   getCurrentUser,
+  getMessagingStatus,
 } from "@/lib/server/dal";
 
 import { Sidebar } from "./shell/sidebar";
@@ -33,13 +34,18 @@ async function SidebarSlot() {
 }
 
 async function TopBarSlot() {
-  const [user, badges] = await Promise.all([getCurrentUser(), getBadges()]);
+  const [user, badges, messaging] = await Promise.all([
+    getCurrentUser(),
+    getBadges(),
+    getMessagingStatus(),
+  ]);
   return (
     <TopBar
       user={user}
       badges={badges}
       canResetDemo={user.role === "ADMIN"}
       canSeeNotifications={canSeeNotifications(user.role)}
+      messagingMode={messaging?.mode ?? null}
     />
   );
 }
