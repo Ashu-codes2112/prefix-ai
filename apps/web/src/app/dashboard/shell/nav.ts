@@ -8,6 +8,7 @@ import {
   ListChecks,
   type LucideIcon,
   MessageSquareText,
+  PlugZap,
   ShieldCheck,
   Upload,
   Users,
@@ -81,6 +82,11 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/dashboard/messaging",
         label: "Messaging",
         icon: MessageSquareText,
+      },
+      {
+        href: "/dashboard/integrations",
+        label: "Integrations",
+        icon: PlugZap,
       },
       {
         href: "/dashboard/compliance",

@@ -583,3 +583,82 @@ export interface IncidentPatientsResult {
   already_listed: number;
   not_found: number;
 }
+
+/* EHR integration (see apps/api/src/prefix_api/schemas/integrations.py). */
+
+export type IntegrationStatus =
+  "off" | "healthy" | "failing" | "stale" | "never_run";
+export type SyncStatus = "RUNNING" | "SUCCEEDED" | "PARTIAL" | "FAILED";
+export type DeliveryStatus = "PENDING" | "DELIVERED" | "FAILED";
+
+export interface SyncCounts {
+  read: number;
+  created: number;
+  updated: number;
+  skipped: number;
+}
+
+export interface SyncRun {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: SyncStatus;
+  counts: Record<string, SyncCounts>;
+  /** Why records were skipped, by field name; never values. */
+  problems: string[];
+  error: string | null;
+}
+
+export interface FhirMapping {
+  service_codes?: Record<string, string>;
+  locations?: Record<string, string>;
+  default_facility_id?: string;
+}
+
+export interface FhirConnection {
+  base_url: string;
+  enabled: boolean;
+  has_token: boolean;
+  mapping: FhirMapping;
+  cursors: Record<string, string>;
+  last_sync_started_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  consecutive_failures: number;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  description: string;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  endpoint_id: string;
+  event: string;
+  status: DeliveryStatus;
+  attempts: number;
+  created_at: string;
+  next_attempt_at: string;
+  last_status_code: number | null;
+  last_error: string | null;
+  delivered_at: string | null;
+  appointment_status: string | null;
+}
+
+export interface IntegrationHealth {
+  status: IntegrationStatus;
+  fhir: FhirConnection | null;
+  runs: SyncRun[];
+  webhooks: WebhookEndpoint[];
+  deliveries: { pending: number; delivered: number; failed: number };
+  recent_deliveries: WebhookDelivery[];
+}
+
+export interface FacilityOption {
+  id: string;
+  name: string;
+}
