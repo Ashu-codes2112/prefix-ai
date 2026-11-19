@@ -48,6 +48,7 @@ from prefix_api.domain.principal import Principal, StaffPrincipal
 from prefix_api.repositories import patients as patients_repo
 from prefix_api.services.audit import record_audit
 from prefix_api.services.consent import append_consent
+from prefix_api.services.patients import erased_external_id
 
 EXPORT_FORMAT_VERSION = 1
 ERASED = "[erased]"
@@ -312,6 +313,9 @@ def erase_patient(
     patient.on_anticoagulant = patient.diabetic_on_insulin = patient.on_glp1_agonist = False
     patient.has_contrast_allergy = patient.has_metal_implant = False
     patient.egfr_value = None
+    patient.egfr_measured_at = None
+    if patient.external_id and not patient.external_id.startswith("erased:"):
+        patient.external_id = erased_external_id(patient.external_id)
     patient.erased_at = now
     changed = 1
 

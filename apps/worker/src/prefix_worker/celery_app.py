@@ -13,6 +13,8 @@ DEMO_PING_INTERVAL_SECONDS = 300.0
 REMINDER_DISPATCH_INTERVAL_SECONDS = 60.0
 TRANSLATION_WARM_INTERVAL_SECONDS = 600.0
 RISK_REFRESH_INTERVAL_SECONDS = 900.0
+FHIR_SYNC_INTERVAL_SECONDS = 900.0
+WEBHOOK_DELIVERY_INTERVAL_SECONDS = 60.0
 
 
 def celery_database_url(settings: Settings) -> str:
@@ -90,6 +92,16 @@ def create_celery_app(settings: Settings) -> Celery:
             "retention-purge": {
                 "task": "prefix_worker.retention.purge",
                 "schedule": crontab(hour=20, minute=45),
+            },
+            "fhir-sync": {
+                "task": "prefix_worker.fhir.sync",
+                "schedule": FHIR_SYNC_INTERVAL_SECONDS,
+                "options": {"expires": FHIR_SYNC_INTERVAL_SECONDS},
+            },
+            "deliver-webhooks": {
+                "task": "prefix_worker.webhooks.deliver",
+                "schedule": WEBHOOK_DELIVERY_INTERVAL_SECONDS,
+                "options": {"expires": WEBHOOK_DELIVERY_INTERVAL_SECONDS},
             },
             "warm-translations": {
                 "task": "prefix_worker.translations.warm",

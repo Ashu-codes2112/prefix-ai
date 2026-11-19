@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +28,14 @@ class Patient(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
         UniqueConstraint("organization_id", "mrn_bidx"),
         Index("ix_patient_org_phone_bidx", "organization_id", "phone_bidx"),
         Index("ix_patient_org_email_bidx", "organization_id", "email_bidx"),
+        # The EHR's own id for the patient (FHIR Patient.id), unique within the hospital.
+        Index(
+            "uq_patient_org_external_id",
+            "organization_id",
+            "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
     )
 
     # Encrypted PII
@@ -56,7 +65,12 @@ class Patient(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
     on_glp1_agonist: Mapped[bool] = mapped_column(Boolean, default=False)
     has_contrast_allergy: Mapped[bool] = mapped_column(Boolean, default=False)
     egfr_value: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
+    # When the eGFR on file was measured, so an older lab result never replaces a newer one.
+    egfr_measured_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     has_metal_implant: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # The EHR's id (FHIR Patient.id) when the patient came from a FHIR sync.
+    external_id: Mapped[str | None] = mapped_column(String(200))
 
     # Set when the patient's identifying data and free text were erased (services/data_rights).
     erased_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))

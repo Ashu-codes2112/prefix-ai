@@ -39,6 +39,29 @@ def _mrn_index(mrn: str | None) -> str | None:
     return None if mrn is None else get_blind_indexer().index(normalize_identifier(mrn), "mrn")
 
 
+def apply_identifiers(
+    patient: Patient, *, phone: str | None, email: str | None, mrn: str | None
+) -> None:
+    """Set phone, e-mail and MRN with the keyed hashes that let them be looked up."""
+    patient.phone = normalize_phone(phone) if phone else None
+    patient.email = normalize_email(email) if email else None
+    patient.mrn = mrn
+    patient.phone_bidx = _phone_index(phone)
+    patient.email_bidx = _email_index(email)
+    patient.mrn_bidx = _mrn_index(mrn)
+
+
+def mrn_index(mrn: str) -> str:
+    """The keyed hash a patient's MRN is looked up by."""
+    return get_blind_indexer().index(normalize_identifier(mrn), "mrn")
+
+
+def erased_external_id(external_id: str) -> str:
+    """What an erased patient keeps instead of the EHR's id: a keyed hash, so a later sync
+    recognises the patient and does not bring their data back, yet the id itself is gone."""
+    return "erased:" + get_blind_indexer().index(external_id, "external_id")
+
+
 class PatientService:
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -184,12 +207,7 @@ class PatientService:
     def _apply_identifiers(
         self, patient: Patient, *, phone: str | None, email: str | None, mrn: str | None
     ) -> None:
-        patient.phone = normalize_phone(phone) if phone else None
-        patient.email = normalize_email(email) if email else None
-        patient.mrn = mrn
-        patient.phone_bidx = _phone_index(phone)
-        patient.email_bidx = _email_index(email)
-        patient.mrn_bidx = _mrn_index(mrn)
+        apply_identifiers(patient, phone=phone, email=email, mrn=mrn)
 
     def _audit_listed(
         self,

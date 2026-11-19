@@ -27,7 +27,7 @@ from prefix_api.domain.enums import (
 )
 from prefix_api.domain.errors import ConflictError, NotFoundError, ValidationFailedError
 from prefix_api.domain.permissions import Permission
-from prefix_api.domain.principal import StaffPrincipal
+from prefix_api.domain.principal import StaffPrincipal, SystemPrincipal
 from prefix_api.repositories import appointments as appointments_repo
 from prefix_api.repositories import organizations as org_repo
 from prefix_api.repositories import patients as patients_repo
@@ -44,6 +44,15 @@ from prefix_api.services.timeline import build_timeline, cancel_events
 ENTITY = "appointment"
 _CLOSED = frozenset({AppointmentStatus.CANCELLED, AppointmentStatus.COMPLETED})
 
+# Staff, or a system job acting for the hospital (the FHIR sync). Only staff are permission-
+# checked: a system job runs only what the hospital configured.
+type Actor = StaffPrincipal | SystemPrincipal
+
+
+def _require(principal: Actor, permission: Permission) -> None:
+    if isinstance(principal, StaffPrincipal):
+        principal.require(permission)
+
 
 @dataclass(frozen=True, slots=True)
 class TimelineEntry:
@@ -55,10 +64,8 @@ class AppointmentService:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create(
-        self, principal: StaffPrincipal, data: AppointmentCreate, *, now: dt.datetime
-    ) -> Appointment:
-        principal.require(Permission.APPOINTMENT_WRITE)
+    def create(self, principal: Actor, data: AppointmentCreate, *, now: dt.datetime) -> Appointment:
+        _require(principal, Permission.APPOINTMENT_WRITE)
         org_id = principal.organization_id
         if data.scheduled_at <= now:
             raise ValidationFailedError("The procedure must be scheduled in the future")
@@ -96,7 +103,7 @@ class AppointmentService:
 
     def reschedule(
         self,
-        principal: StaffPrincipal,
+        principal: Actor,
         appointment_id: uuid.UUID,
         data: AppointmentReschedule,
         *,
@@ -105,7 +112,7 @@ class AppointmentService:
     ) -> Appointment:
         """Move a procedure. ``permission`` is what the caller needs: answering a patient's
         reschedule request needs ``REQUEST_ANSWER`` rather than general booking rights."""
-        principal.require(permission)
+        _require(principal, permission)
         appointment = self._load(principal, appointment_id, for_update=True)
         if appointment.status in _CLOSED:
             raise ConflictError(f"A {appointment.status.value.lower()} appointment cannot move")
@@ -126,13 +133,13 @@ class AppointmentService:
 
     def cancel(
         self,
-        principal: StaffPrincipal,
+        principal: Actor,
         appointment_id: uuid.UUID,
         data: AppointmentCancel,
         *,
         now: dt.datetime,
     ) -> Appointment:
-        principal.require(Permission.APPOINTMENT_WRITE)
+        _require(principal, Permission.APPOINTMENT_WRITE)
         appointment = self._load(principal, appointment_id, for_update=True)
         if appointment.status in _CLOSED:
             raise ConflictError(f"The appointment is already {appointment.status.value.lower()}")
@@ -235,7 +242,7 @@ class AppointmentService:
         )
         return event
 
-    def _choose_protocol(self, principal: StaffPrincipal, data: AppointmentCreate) -> PrepProtocol:
+    def _choose_protocol(self, principal: Actor, data: AppointmentCreate) -> PrepProtocol:
         if data.protocol_id is not None:
             protocol = protocols_repo.get_protocol(
                 self._session, principal.organization_id, data.protocol_id
@@ -259,7 +266,7 @@ class AppointmentService:
         return approved[0]
 
     def _load(
-        self, principal: StaffPrincipal, appointment_id: uuid.UUID, *, for_update: bool = False
+        self, principal: Actor, appointment_id: uuid.UUID, *, for_update: bool = False
     ) -> Appointment:
         appointment = appointments_repo.get_appointment(
             self._session, principal.organization_id, appointment_id, for_update=for_update
@@ -270,7 +277,7 @@ class AppointmentService:
 
     def _audit(
         self,
-        principal: StaffPrincipal,
+        principal: Actor,
         action: AuditAction,
         appointment: Appointment,
         *,

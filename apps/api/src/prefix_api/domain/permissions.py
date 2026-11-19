@@ -32,6 +32,8 @@ class Permission(StrEnum):
     PATIENT_ERASE = "patient:erase"
     RETENTION_MANAGE = "retention:manage"
     INCIDENT_MANAGE = "incident:manage"
+    # The FHIR connection and outbound webhooks.
+    INTEGRATION_MANAGE = "integration:manage"
 
 
 _P = Permission

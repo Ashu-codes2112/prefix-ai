@@ -231,6 +231,21 @@ class IncidentStatus(StrEnum):
     CLOSED = "CLOSED"
 
 
+class SyncStatus(StrEnum):
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    # Some records were skipped (see the run's problems); the rest were saved.
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+
+
+class DeliveryStatus(StrEnum):
+    PENDING = "PENDING"
+    DELIVERED = "DELIVERED"
+    # Gave up after the last retry.
+    FAILED = "FAILED"
+
+
 class OfferStatus(StrEnum):
     # The one offer that is waiting for the candidate's answer.
     OPEN = "OPEN"
