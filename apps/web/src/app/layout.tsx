@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_Devanagari } from "next/font/google";
+import { headers } from "next/headers";
 
 import { Providers } from "@/components/providers";
 
@@ -35,7 +36,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Reading the request makes every page render per request, so Next.js can put this
+  // request's script nonce (set in src/proxy.ts) on its scripts.
+  await headers();
   return (
     <html
       lang="en"

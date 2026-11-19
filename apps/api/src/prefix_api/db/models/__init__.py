@@ -2,6 +2,11 @@
 
 from prefix_api.db.models.assistant import AssistantExchange
 from prefix_api.db.models.audit import AuditLog
+from prefix_api.db.models.compliance import (
+    ConsentRecord,
+    SecurityIncident,
+    SecurityIncidentPatient,
+)
 from prefix_api.db.models.engagement import (
     CheckIn,
     Message,
@@ -29,6 +34,7 @@ __all__ = [
     "AuditLog",
     "BackfillOffer",
     "CheckIn",
+    "ConsentRecord",
     "Escalation",
     "Facility",
     "Message",
@@ -43,6 +49,8 @@ __all__ = [
     "ProcedureType",
     "RefreshToken",
     "RiskScore",
+    "SecurityIncident",
+    "SecurityIncidentPatient",
     "StaffNotification",
     "StaffNotificationRead",
     "Task",

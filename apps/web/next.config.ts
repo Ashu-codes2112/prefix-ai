@@ -3,9 +3,8 @@ import type { NextConfig } from "next";
 const isProduction = process.env.NODE_ENV === "production";
 
 /**
- * Every page is served with these. The API is only ever called from the server, so the browser
- * needs no other origin. Next.js injects inline scripts for its page data, so script-src allows
- * inline code. Nonces would remove that; see docs/DEPLOYMENT.md.
+ * Every page is served with these. The content security policy is set per request in
+ * src/proxy.ts, because it carries a fresh script nonce each time (src/lib/csp.ts).
  */
 const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -14,22 +13,6 @@ const SECURITY_HEADERS = [
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-  },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self'",
-      "manifest-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-    ].join("; "),
   },
   ...(isProduction
     ? [
@@ -42,8 +25,6 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  partialPrefetching: true,
   transpilePackages: ["@prefix/shared"],
   turbopack: {
     rules: {

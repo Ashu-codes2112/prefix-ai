@@ -11,8 +11,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
 
+import prefix_api.main
 from prefix_api.core.config import Settings
 from prefix_api.core.crypto import configure_crypto
+from prefix_api.core.rate_limit import InMemoryRateLimiter
 from prefix_api.main import create_app
 
 type SettingsFactory = Callable[..., Settings]
@@ -29,6 +31,15 @@ def make_settings() -> SettingsFactory:
 @pytest.fixture
 def settings() -> Settings:
     return make_test_settings()
+
+
+@pytest.fixture(autouse=True)
+def _rate_limits_per_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test app counts only its own requests, even with REDIS_URL set: CI runs one Redis
+    for every test. tests/test_rate_limit.py covers the Redis limiter itself."""
+    monkeypatch.setattr(
+        prefix_api.main, "build_rate_limiter", lambda _settings: InMemoryRateLimiter()
+    )
 
 
 @pytest.fixture(autouse=True, scope="session")

@@ -34,6 +34,26 @@ def _normalise(text: str) -> str:
     return " ".join(kept.split())
 
 
+# Replies that withdraw consent to messages. Deliberately short: "cancel" is left out because a
+# patient may mean the procedure, which a person must handle.
+_OPT_OUT = {
+    "stop",
+    "stopall",
+    "unsubscribe",
+    "end",
+    "quit",
+    "band karo",
+    "band",
+    "बंद करो",
+    "बंद",
+}
+
+
+def is_opt_out(text: str) -> bool:
+    """True when the whole reply asks to stop messages (for example "STOP" or "बंद करो")."""
+    return _normalise(text) in {_normalise(o) for o in _OPT_OUT}
+
+
 def parse_reply(text: str) -> CheckInResponse:
     """Classify a reply. Anything that is not clearly YES, NO or HELP is OTHER, which is
     always shown to a person rather than guessed at."""

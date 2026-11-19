@@ -85,6 +85,16 @@ def _settings(**overrides: object) -> Settings:
     return Settings.model_validate(values)
 
 
+def test_beat_purges_expired_records_nightly() -> None:
+    entry = celery_app.conf.beat_schedule["retention-purge"]
+
+    assert entry["task"] == "prefix_worker.retention.purge"
+    assert entry["schedule"].hour == {20}
+    assert entry["schedule"].minute == {45}
+    celery_app.loader.import_default_modules()
+    assert "prefix_worker.retention.purge" in celery_app.tasks
+
+
 def test_redis_is_the_broker_and_the_result_backend_when_it_is_set() -> None:
     broker, backend = celery_urls(_settings(redis_url="redis://cache:6379/0"))
 

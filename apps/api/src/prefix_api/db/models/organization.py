@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Numeric, String, UniqueConstraint, text
+from sqlalchemy import Boolean, Integer, Numeric, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from prefix_api.db.base import Base, TenantScoped, Timestamps, UUIDPrimaryKey
@@ -20,6 +20,9 @@ class Organization(UUIDPrimaryKey, Timestamps, Base):
     # The hospital's cancellation rate (%) before Prefix AI. Analytics estimates what was
     # avoided against it; without one, nothing is claimed as saved.
     baseline_cancellation_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    # Erase a patient this many days after their last procedure (services/retention).
+    # None keeps records until someone erases them.
+    retention_days: Mapped[int | None] = mapped_column(Integer)
 
 
 class Facility(UUIDPrimaryKey, Timestamps, TenantScoped, Base):

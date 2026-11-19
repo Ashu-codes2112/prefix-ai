@@ -15,7 +15,7 @@ from prefix_api.core.middleware import (
     audit_backstop_middleware,
     request_context_middleware,
 )
-from prefix_api.core.rate_limit import RateLimiter
+from prefix_api.core.rate_limit import RateLimiter, build_rate_limiter
 from prefix_api.core.security_headers import security_headers
 from prefix_api.db.session import (
     SessionFactory,
@@ -30,6 +30,7 @@ from prefix_api.routers import (
     assistant_status,
     auth,
     badges,
+    compliance,
     dashboard,
     demo,
     escalations,
@@ -66,7 +67,9 @@ def _log_database_reachability(session_factory: SessionFactory) -> None:
 
 
 def create_app(
-    settings: Settings | None = None, session_factory: SessionFactory | None = None
+    settings: Settings | None = None,
+    session_factory: SessionFactory | None = None,
+    rate_limiter: RateLimiter | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_format)
@@ -95,7 +98,8 @@ def create_app(
     app.state.settings = settings
     app.state.session_factory = session_factory
     app.state.assistant_llm = build_assistant_llm(settings)
-    app.state.rate_limiter = RateLimiter()
+    # Shared through Redis when REDIS_URL is set; in this process otherwise.
+    app.state.rate_limiter = rate_limiter or build_rate_limiter(settings)
     app.state.messaging_provider = build_messaging_provider(settings)
 
     register_error_handlers(app)
@@ -132,5 +136,6 @@ def create_app(
     app.include_router(staff_notifications.router)
     app.include_router(messaging.router)
     app.include_router(assistant_status.router)
+    app.include_router(compliance.router)
     app.include_router(webhooks.router)
     return app

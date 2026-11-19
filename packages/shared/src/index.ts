@@ -511,3 +511,75 @@ export interface ImportReport {
   ignored_columns: string[];
   errors: ImportRowError[];
 }
+
+/* Go-live compliance (see apps/api/src/prefix_api/schemas/compliance.py). */
+
+export type ConsentSource = "STAFF" | "IMPORT" | "SMS_KEYWORD" | "ERASURE";
+
+export interface ConsentRecord {
+  granted: boolean;
+  source: ConsentSource;
+  recorded_at: string;
+  recorded_by_staff: boolean;
+}
+
+export interface ConsentStatus {
+  consent_to_message: boolean;
+  consent_timestamp: string | null;
+  erased: boolean;
+  /** Newest first. */
+  history: ConsentRecord[];
+}
+
+export interface ErasureResult {
+  patient_id: string;
+  erased_at: string;
+  rows_changed: number;
+}
+
+export interface RetentionReport {
+  /** null keeps records until someone erases them. */
+  retention_days: number | null;
+  cutoff: string | null;
+  dry_run: boolean;
+  due: number;
+  held_for_incident: number;
+  held_for_upcoming_care: number;
+  erased: number;
+}
+
+export type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type IncidentStatus = "OPEN" | "CONTAINED" | "NOTIFIED" | "CLOSED";
+export type IncidentStep =
+  "contained" | "authority_notified" | "patients_notified" | "closed";
+
+export const DATA_CATEGORIES = [
+  "identity",
+  "contact",
+  "health",
+  "messages",
+  "credentials",
+] as const;
+export type DataCategory = (typeof DATA_CATEGORIES)[number];
+
+export interface Incident {
+  id: string;
+  title: string;
+  description: string;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  data_categories: string[];
+  discovered_at: string;
+  /** 72 hours after discovery. */
+  notify_by: string;
+  authority_notified_at: string | null;
+  patients_notified_at: string | null;
+  closed_at: string | null;
+  affected_patients: number;
+}
+
+export interface IncidentPatientsResult {
+  added: number;
+  already_listed: number;
+  not_found: number;
+}

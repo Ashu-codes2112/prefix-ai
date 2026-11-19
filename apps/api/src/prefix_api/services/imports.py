@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from prefix_api.core.crypto import get_blind_indexer, normalize_identifier, normalize_phone
 from prefix_api.db.models import Patient
 from prefix_api.domain.csv_import import CsvFormatError, CsvRow, parse_flag, read_table
-from prefix_api.domain.enums import AuditAction
+from prefix_api.domain.enums import AuditAction, ConsentSource
 from prefix_api.domain.errors import DomainError, ValidationFailedError
 from prefix_api.domain.permissions import Permission
 from prefix_api.domain.principal import StaffPrincipal
@@ -208,7 +208,9 @@ class ImportService:
         if "preferred_channel" in values:
             values["preferred_channel"] = values["preferred_channel"].upper()
         data = _validated(PatientCreate, values, row.line)
-        PatientService(self._session).create(principal, data, now=now)
+        PatientService(self._session).create(
+            principal, data, now=now, consent_source=ConsentSource.IMPORT
+        )
 
     # -- appointments ----------------------------------------------------------------------
 

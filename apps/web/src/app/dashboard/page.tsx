@@ -4,13 +4,18 @@ import { Suspense } from "react";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import {
+  canManageCompliance,
+  canRecordConsent,
   getBadges,
+  getConsentStatus,
   getCurrentUser,
+  getErasurePhrase,
   getPatientDrawer,
   listUpcoming,
 } from "@/lib/server/dal";
 
 import { PatientSheet } from "./coordinator/patient-sheet";
+import type { Privacy } from "./coordinator/privacy-tab";
 import { readSheetTab } from "./coordinator/sheet-tabs";
 import { SummaryCards, summarize } from "./coordinator/summary-cards";
 import {
@@ -27,6 +32,19 @@ export const metadata: Metadata = {
 
 function readFilter(value: string | string[] | undefined): Filter {
   return value === "attention" || value === "high" ? value : "all";
+}
+
+/** Consent for everyone who may read the patient; export and erasure for admins only. */
+async function loadPrivacy(
+  patientId: string,
+  role: Parameters<typeof canRecordConsent>[0],
+): Promise<Privacy> {
+  const admin = canManageCompliance(role);
+  const [consent, erasurePhrase] = await Promise.all([
+    getConsentStatus(patientId),
+    admin ? getErasurePhrase(patientId) : null,
+  ]);
+  return { consent, erasurePhrase, canRecordConsent: canRecordConsent(role) };
 }
 
 async function Board({
@@ -46,6 +64,9 @@ async function Board({
     getCurrentUser(),
     getBadges(),
   ]);
+  const privacy = drawer
+    ? await loadPrivacy(drawer.appointment.patient_id, user.role)
+    : undefined;
   const counts: Record<Filter, number> = {
     all: rows.length,
     attention: filterRows(rows, "attention").length,
@@ -88,6 +109,7 @@ async function Board({
           filter={filter}
           role={user.role}
           tab={tab}
+          privacy={privacy}
         />
       ) : null}
     </>

@@ -79,8 +79,8 @@ def login(
     try:
         pair = AuthService(session, settings).login(body.email, body.password, now=now)
     except AuthenticationError:
-        limiter.record(client_key)
-        limiter.record(account_key)
+        limiter.record(client_key, window_seconds=LOGIN_WINDOW_SECONDS)
+        limiter.record(account_key, window_seconds=LOGIN_WINDOW_SECONDS)
         raise
     return _out(pair)
 

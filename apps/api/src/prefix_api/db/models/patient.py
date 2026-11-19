@@ -58,6 +58,9 @@ class Patient(UUIDPrimaryKey, Timestamps, TenantScoped, Base):
     egfr_value: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))
     has_metal_implant: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Set when the patient's identifying data and free text were erased (services/data_rights).
+    erased_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class PatientMagicLink(UUIDPrimaryKey, TenantScoped, Base):
     """A single-use login link for a patient. Only the token's SHA-256 hash is stored."""

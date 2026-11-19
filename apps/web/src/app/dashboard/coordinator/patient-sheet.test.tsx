@@ -23,6 +23,10 @@ vi.mock("./actions", () => ({
   reschedule: vi.fn(),
   resendFailed: vi.fn(),
 }));
+vi.mock("../compliance/actions", () => ({
+  erasePatient: vi.fn(),
+  recordConsent: vi.fn(),
+}));
 
 const ROW: UpcomingRow = {
   appointment_id: "3d1f0c2e-1111-4a2b-9c3d-000000000001",
