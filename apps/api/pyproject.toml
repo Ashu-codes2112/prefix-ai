@@ -16,10 +16,15 @@ dependencies = [
     "pydantic-settings>=2.16.1",
     "pyjwt>=2.15.1",
     "python-multipart>=0.0.32",
+    "redis>=6.4.0",
     "sqlalchemy>=2.1.6",
     "structlog>=26.1.0",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.scripts]
+# Set up a real hospital: create-org, create-first-admin (see docs/DEPLOYMENT.md).
+prefix-admin = "prefix_api.cli:main"
 
 [build-system]
 requires = ["hatchling"]

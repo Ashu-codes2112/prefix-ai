@@ -27,6 +27,11 @@ class Permission(StrEnum):
     REQUEST_ANSWER = "request:answer"
     # Send one test message to a number the admin types (admins only: ADMIN has every one).
     MESSAGING_TEST = "messaging:test"
+    # Data rights and go-live compliance: admins only (no other role lists them).
+    PATIENT_EXPORT = "patient:export"
+    PATIENT_ERASE = "patient:erase"
+    RETENTION_MANAGE = "retention:manage"
+    INCIDENT_MANAGE = "incident:manage"
 
 
 _P = Permission

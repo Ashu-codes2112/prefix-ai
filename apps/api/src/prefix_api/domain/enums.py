@@ -205,6 +205,32 @@ class AssistantOutcome(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
+class ConsentPurpose(StrEnum):
+    # Prep reminders, check-ins and replies by SMS, WhatsApp or e-mail.
+    MESSAGING = "MESSAGING"
+
+
+class ConsentSource(StrEnum):
+    STAFF = "STAFF"  # recorded by staff: in person, by phone or from a signed form
+    IMPORT = "IMPORT"  # a CSV import (the hospital keeps the original record)
+    SMS_KEYWORD = "SMS_KEYWORD"  # the patient replied STOP
+    ERASURE = "ERASURE"  # withdrawn as part of erasing the patient's data
+
+
+class IncidentSeverity(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class IncidentStatus(StrEnum):
+    OPEN = "OPEN"
+    CONTAINED = "CONTAINED"
+    NOTIFIED = "NOTIFIED"
+    CLOSED = "CLOSED"
+
+
 class OfferStatus(StrEnum):
     # The one offer that is waiting for the candidate's answer.
     OPEN = "OPEN"

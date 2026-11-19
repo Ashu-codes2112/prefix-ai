@@ -86,6 +86,11 @@ def create_celery_app(settings: Settings) -> Celery:
                 "task": "prefix_worker.demo.reset",
                 "schedule": crontab(hour=21, minute=30),
             },
+            # Retention purge at 02:15 in India (20:45 UTC), after the evening's last reminders.
+            "retention-purge": {
+                "task": "prefix_worker.retention.purge",
+                "schedule": crontab(hour=20, minute=45),
+            },
             "warm-translations": {
                 "task": "prefix_worker.translations.warm",
                 "schedule": TRANSLATION_WARM_INTERVAL_SECONDS,

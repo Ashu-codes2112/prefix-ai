@@ -10,7 +10,7 @@ from prefix_api.core.config import Settings
 from prefix_api.core.security import hash_opaque_token, issue_patient_token, new_opaque_token
 from prefix_api.db.models import Organization, PatientMagicLink
 from prefix_api.domain.enums import AuditAction, MessageChannel
-from prefix_api.domain.errors import AuthenticationError, NotFoundError
+from prefix_api.domain.errors import AuthenticationError, NotFoundError, ValidationFailedError
 from prefix_api.domain.permissions import Permission
 from prefix_api.domain.principal import PatientPrincipal, StaffPrincipal
 from prefix_api.repositories import patients as patients_repo
@@ -53,6 +53,8 @@ class PatientAccessService:
         patient = patients_repo.get_patient(self._session, principal.organization_id, patient_id)
         if patient is None:
             raise NotFoundError("Patient not found")
+        if patient.erased_at is not None:
+            raise ValidationFailedError("This patient's data has been erased")
 
         token = new_opaque_token()
         expires_at = now + dt.timedelta(minutes=self._settings.magic_link_ttl_minutes)

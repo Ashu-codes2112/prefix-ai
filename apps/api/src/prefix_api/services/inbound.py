@@ -1,6 +1,7 @@
 """Inbound patient replies (SMS/WhatsApp): link them to check-ins and act on them.
 
-Free text that is not a clear YES/NO/HELP is never interpreted here; it is stored and put in
+STOP (or its Hindi equivalents) withdraws consent to messages. Free text that is not a clear
+YES/NO/HELP/STOP is never interpreted here; it is stored and put in
 front of a person (a nurse review task and a staff notification). It could describe a red-flag
 symptom (safety rule b): the deterministic red-flag check marks that notification urgent.
 """
@@ -25,6 +26,7 @@ from prefix_api.domain.enums import (
     AuditAction,
     CheckInResponse,
     CheckInStatus,
+    ConsentSource,
     MessageChannel,
     MessageDirection,
     MessageStatus,
@@ -33,9 +35,10 @@ from prefix_api.domain.enums import (
 )
 from prefix_api.domain.principal import SystemPrincipal
 from prefix_api.domain.red_flags import describe, detect_red_flags
-from prefix_api.domain.replies import parse_reply
+from prefix_api.domain.replies import is_opt_out, parse_reply
 from prefix_api.services.audit import record_audit
 from prefix_api.services.check_ins import create_task, record_answer
+from prefix_api.services.consent import append_consent
 from prefix_api.services.staff_notifications import notify_staff
 
 JOB = "inbound_messages"
@@ -111,6 +114,29 @@ def handle_inbound_message(
         purpose=PURPOSE,
         details={"status": response.value},
     )
+
+    if is_opt_out(body):
+        # The number may belong to several patient records; stop messaging all of them.
+        for each in patients:
+            if each.consent_to_message and each.erased_at is None:
+                append_consent(
+                    session,
+                    each,
+                    granted=False,
+                    source=ConsentSource.SMS_KEYWORD,
+                    principal=SystemPrincipal(organization_id=each.organization_id, job=JOB),
+                    now=now,
+                )
+        notify_staff(
+            session,
+            principal=principal,
+            patient=patient,
+            appointment_id=check_in.appointment_id if check_in else None,
+            kind=StaffNotificationKind.MESSAGE,
+            summary="Replied STOP: messages are off until consent is recorded again",
+            now=now,
+        )
+        return InboundResult(matched_patient=True, response=None, check_in_id=None)
 
     if check_in is None or response is CheckInResponse.OTHER:
         task = create_task(

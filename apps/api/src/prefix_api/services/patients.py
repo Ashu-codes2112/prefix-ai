@@ -12,7 +12,7 @@ from prefix_api.core.crypto import (
     normalize_phone,
 )
 from prefix_api.db.models import Patient
-from prefix_api.domain.enums import AuditAction
+from prefix_api.domain.enums import AuditAction, ConsentSource
 from prefix_api.domain.errors import NotFoundError, ValidationFailedError
 from prefix_api.domain.permissions import Permission
 from prefix_api.domain.principal import StaffPrincipal
@@ -20,6 +20,7 @@ from prefix_api.repositories import patients as patients_repo
 from prefix_api.schemas.patients import PatientCreate, PatientSearch, PatientUpdate
 from prefix_api.services._db import flush_or_conflict
 from prefix_api.services.audit import record_audit
+from prefix_api.services.consent import append_consent
 
 ENTITY = "patient"
 _MAX_PAGE_SIZE = 100
@@ -43,7 +44,12 @@ class PatientService:
         self._session = session
 
     def create(
-        self, principal: StaffPrincipal, data: PatientCreate, *, now: dt.datetime
+        self,
+        principal: StaffPrincipal,
+        data: PatientCreate,
+        *,
+        now: dt.datetime,
+        consent_source: ConsentSource = ConsentSource.STAFF,
     ) -> Patient:
         principal.require(Permission.PATIENT_WRITE)
         patient = Patient(
@@ -62,6 +68,15 @@ class PatientService:
             patient_id=patient.id,
             purpose="patient_registration",
         )
+        if data.consent_to_message:
+            append_consent(
+                self._session,
+                patient,
+                granted=True,
+                source=consent_source,
+                principal=principal,
+                now=now,
+            )
         return patient
 
     def get(self, principal: StaffPrincipal, patient_id: uuid.UUID, *, purpose: str) -> Patient:
@@ -127,7 +142,10 @@ class PatientService:
         if patient is None:
             raise NotFoundError("Patient not found")
 
+        if patient.erased_at is not None:
+            raise ValidationFailedError("This patient's data has been erased")
         changes = data.model_dump(exclude_unset=True)
+        consent = changes.pop("consent_to_message", None)
         identifier_fields = {"phone", "email", "mrn"} & changes.keys()
         for field, value in changes.items():
             if field not in identifier_fields:
@@ -139,10 +157,18 @@ class PatientService:
                 email=changes.get("email", patient.email),
                 mrn=changes.get("mrn", patient.mrn),
             )
-        if "consent_to_message" in changes:
-            # Records when consent was given or withdrawn.
-            patient.consent_timestamp = now
         flush_or_conflict(self._session, _MRN_CONFLICT)
+        if consent is not None and consent != patient.consent_to_message:
+            # Kept as history too: who changed it, and when (services/consent.py).
+            append_consent(
+                self._session,
+                patient,
+                granted=consent,
+                source=ConsentSource.STAFF,
+                principal=principal,
+                now=now,
+            )
+            changes["consent_to_message"] = consent
         record_audit(
             self._session,
             principal=principal,

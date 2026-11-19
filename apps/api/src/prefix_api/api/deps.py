@@ -6,12 +6,13 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from prefix_api.core.config import Settings
 from prefix_api.core.request_context import current_request_context
 from prefix_api.core.security import InvalidTokenError, decode_token
-from prefix_api.db.models import User
+from prefix_api.db.models import Patient, User
 from prefix_api.domain.errors import AuthenticationError
 from prefix_api.domain.permissions import Permission
 from prefix_api.domain.principal import PatientPrincipal, StaffPrincipal
@@ -92,13 +93,19 @@ def get_staff_principal(
     return StaffPrincipal(user_id=user.id, organization_id=user.organization_id, role=user.role)
 
 
-def get_patient_principal(credentials: BearerToken, settings: SettingsDep) -> PatientPrincipal:
+def get_patient_principal(
+    credentials: BearerToken, settings: SettingsDep, session: DbSession
+) -> PatientPrincipal:
     if credentials is None:
         raise AuthenticationError("Missing bearer token")
     try:
         claims = decode_token(settings, credentials.credentials, "patient")
     except InvalidTokenError as exc:
         raise AuthenticationError("Invalid or expired patient session") from exc
+    # A session outlives nothing: once a patient's data is erased, their sessions stop working.
+    erased = session.scalar(select(Patient.erased_at).where(Patient.id == claims.subject))
+    if erased is not None:
+        raise AuthenticationError("Invalid or expired patient session")
     return PatientPrincipal(patient_id=claims.subject, organization_id=claims.organization_id)
 
 
