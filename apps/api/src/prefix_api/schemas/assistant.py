@@ -1,6 +1,6 @@
 import datetime as dt
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
@@ -49,3 +49,15 @@ class AssistantReplyOut(BaseModel):
             citations=[CitationOut(event_id=c.event_id, title=c.title) for c in result.citations],
             created_at=exchange.created_at,
         )
+
+
+AssistantMode = Literal["live", "nurse_handoff"]
+
+
+class AssistantStatusOut(BaseModel):
+    """For the staff app; no patient data. live: answers from the patient's approved protocol,
+    citing the steps (ANTHROPIC_API_KEY set). nurse_handoff: every question goes to a nurse.
+    Red flags always go to a nurse, in either mode."""
+
+    mode: AssistantMode
+    model: str | None

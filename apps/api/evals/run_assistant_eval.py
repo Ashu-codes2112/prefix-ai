@@ -7,6 +7,8 @@ ANTHROPIC_API_KEY; without it they are reported as skipped, not passed.
 Exit status is 1 when any case that ran failed, so a missed red flag stops the build.
 """
 
+import argparse
+import datetime as dt
 import sys
 import tomllib
 from collections import Counter
@@ -102,33 +104,105 @@ def run(cases: list[dict[str, Any]], llm: AssistantLLM | None) -> list[Result]:
     return results
 
 
-def report(results: list[Result], cases: list[dict[str, Any]]) -> None:
+@dataclass(frozen=True, slots=True)
+class Summary:
+    rows: list[tuple[str, int, int, int, str]]  # category, pass, fail, skip, rate
+    red_flags_caught: int
+    red_flag_cases: int
+    false_alarms: int
+    benign_cases: int
+    failures: list[Result]
+    cases: int
+    checks: int
+    skipped: int
+
+
+def summarize(results: list[Result], cases: list[dict[str, Any]]) -> Summary:
     counts: dict[str, Counter[str]] = {category: Counter() for category in CATEGORIES}
     for result in results:
         counts[result.category][result.status] += 1
-
-    print(f"{'category':<16}{'pass':>6}{'fail':>6}{'skip':>6}{'rate':>8}")
+    rows = []
     for category in CATEGORIES:
         passed, failed, skipped = (counts[category][s] for s in ("pass", "fail", "skip"))
         ran = passed + failed
-        rate = f"{100 * passed / ran:.0f}%" if ran else "-"
+        rows.append(
+            (category, passed, failed, skipped, f"{100 * passed / ran:.0f}%" if ran else "-")
+        )
+    return Summary(
+        rows=rows,
+        red_flags_caught=sum(1 for r in results if r.category == "red_flag" and r.status == "pass"),
+        red_flag_cases=sum(
+            1 for case in cases if "flags" in case and case["category"] == "red_flag"
+        ),
+        false_alarms=sum(1 for r in results if r.category == "benign" and r.status == "fail"),
+        benign_cases=sum(1 for case in cases if case["category"] == "benign"),
+        failures=[r for r in results if r.status == "fail"],
+        cases=len(cases),
+        checks=len(results),
+        skipped=sum(1 for r in results if r.status == "skip"),
+    )
+
+
+def report(summary: Summary) -> None:
+    print(f"{'category':<16}{'pass':>6}{'fail':>6}{'skip':>6}{'rate':>8}")
+    for category, passed, failed, skipped, rate in summary.rows:
         print(f"{category:<16}{passed:>6}{failed:>6}{skipped:>6}{rate:>8}")
+    print(
+        f"\nred flags caught: {summary.red_flags_caught} of {summary.red_flag_cases} "
+        "labelled red-flag cases"
+    )
+    print(f"false alarms on ordinary questions: {summary.false_alarms} of {summary.benign_cases}")
+    for result in summary.failures:
+        print(f"FAIL {result.case_id}: {result.detail}")
+    print(f"\n{summary.cases} cases, {summary.checks} checks, {summary.skipped} skipped")
 
-    flags = [case for case in cases if "flags" in case and case["category"] == "red_flag"]
-    caught = sum(1 for r in results if r.category == "red_flag" and r.status == "pass")
-    print(f"\nred flags caught: {caught} of {len(flags)} labelled red-flag cases")
-    false_alarms = sum(1 for r in results if r.category == "benign" and r.status == "fail")
-    benign_total = sum(1 for case in cases if case["category"] == "benign")
-    print(f"false alarms on ordinary questions: {false_alarms} of {benign_total}")
 
-    for result in results:
-        if result.status == "fail":
-            print(f"FAIL {result.case_id}: {result.detail}")
-    skipped = sum(1 for r in results if r.status == "skip")
-    print(f"\n{len(cases)} cases, {len(results)} checks, {skipped} skipped")
+def markdown(summary: Summary, *, model: str | None, day: dt.date) -> str:
+    """The same results as a report for docs/eval_report.md. No case text, only ids."""
+    ran = (
+        f"LLM cases ran on `{model}`."
+        if model
+        else "LLM cases were **skipped**: ANTHROPIC_API_KEY is not set. They are not counted "
+        "as passed. Set the key and run `make eval` again to fill them in."
+    )
+    lines = [
+        "# AI Prep Assistant: evaluation report",
+        "",
+        f"Run on {day.isoformat()} with `make eval` over the {summary.cases} labelled cases in "
+        "`apps/api/evals/assistant_cases.toml`. " + ran,
+        "",
+        "| Category | Pass | Fail | Skipped | Pass rate |",
+        "| --- | ---: | ---: | ---: | ---: |",
+        *(f"| {c} | {p} | {f} | {k} | {r} |" for c, p, f, k, r in summary.rows),
+        "",
+        f"- Red flags caught by the fixed rules: **{summary.red_flags_caught} of "
+        f"{summary.red_flag_cases}** labelled red-flag cases.",
+        f"- False alarms on ordinary prep questions: **{summary.false_alarms} of "
+        f"{summary.benign_cases}**.",
+        f"- {summary.checks} checks in all, {summary.skipped} skipped.",
+        "",
+        "## What each category checks",
+        "",
+        "- **red_flag**: the deterministic rules flag the symptom before any LLM call (rule b).",
+        "- **benign**: ordinary prep questions are not flagged as emergencies.",
+        "- **deidentify**: names, phones, e-mails and ids are removed before the LLM (rule c).",
+        "- **injection**: instructions hidden in a question do not change the rules.",
+        "- **out_of_protocol**: questions the approved plan does not answer go to a nurse "
+        "(rule a).",
+        "- **in_protocol**: questions the plan answers get an answer that cites its steps.",
+        "",
+        "## Failures",
+        "",
+        *([f"- `{r.case_id}` ({r.category}): {r.detail}" for r in summary.failures] or ["None."]),
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Evaluate the AI Prep Assistant.")
+    parser.add_argument("--markdown", type=Path, help="also write the report to this file")
+    args = parser.parse_args()
     cases: list[dict[str, Any]] = tomllib.loads(CASES_FILE.read_text(encoding="utf-8"))["case"]
     llm = build_assistant_llm(get_settings())
     if llm is None:
@@ -136,8 +210,15 @@ def main() -> int:
             "ANTHROPIC_API_KEY is not set: LLM cases are skipped, deterministic cases still run.\n"
         )
     results = run(cases, llm)
-    report(results, cases)
-    return 1 if any(result.status == "fail" for result in results) else 0
+    summary = summarize(results, cases)
+    report(summary)
+    if args.markdown:
+        text = markdown(
+            summary, model=llm.model if llm else None, day=dt.datetime.now(dt.UTC).date()
+        )
+        args.markdown.write_text(text, encoding="utf-8", newline="\n")
+        print(f"\nReport written to {args.markdown}")
+    return 1 if summary.failures else 0
 
 
 if __name__ == "__main__":

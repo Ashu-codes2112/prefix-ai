@@ -59,7 +59,7 @@ seed-demo: .env ## Create or refresh the guest demo hospital (synthetic data onl
 	uv run python -m prefix_api.seed_demo
 
 eval: ## Evaluate the AI Prep Assistant on labelled cases (LLM cases need ANTHROPIC_API_KEY)
-	uv run python apps/api/evals/run_assistant_eval.py
+	uv run python apps/api/evals/run_assistant_eval.py --markdown docs/eval_report.md
 
 e2e: ## Playwright end-to-end tests (needs a migrated DATABASE_URL; starts API and web)
 	pnpm --filter @prefix/web build
