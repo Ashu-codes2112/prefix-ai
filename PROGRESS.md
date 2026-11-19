@@ -4,27 +4,26 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 
 ## Resume point
 
-**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, and the live assistant v1.6.0 on 2026-11-19 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
+**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, the live assistant v1.6.0 on 2026-11-19, and go-live compliance v1.7.0 on 2026-11-19 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
 **Goal:** demo-ready v1.0.0 as fast as possible, without weakening the safety rules. Speed rules: related tests while developing, full suite once per plan item, Playwright once per phase, pre-commit on changed files, push after each item, wait for CI only before merging into main. About 60–90 minutes per phase. A problem that takes over 15 minutes is logged under "Known issues" and skipped.
 **Road to v2.0.0** (one branch per part, `part-<n>-<name>`; merge after green CI; tag a minor version per part, then `v2.0.0`):
 - [x] Part 1 — Demo parity (`v1.4.0`).
 - [x] Part 2 — Real messaging (`v1.5.0`).
 - [x] Part 3 — AI assistant live (`v1.6.0`).
-- [ ] Part 4 — Go-live compliance, HIPAA and India DPDP Act (`v1.7.0`): `create-org` and `create-first-admin` commands; patient export (JSON and PDF) and erasure by crypto-shredding, admin-only, double-confirmed and audited; per-organization retention with a nightly purge and a dry-run report; breach and incident workflow with the 72-hour deadline and docs/BREACH_RESPONSE.md; consent record and withdraw (withdrawn consent blocks messaging); rate limits in Redis with an in-memory fallback in dev; CSP nonces; docs/CLINICAL_REVIEW_CHECKLIST.md.
+- [x] Part 4 — Go-live compliance, HIPAA and India DPDP Act (`v1.7.0`).
 - [ ] Part 5 — FHIR R4 (`v1.8.0`): Patient, Appointment, MedicationStatement, Observation (eGFR, creatinine) and AllergyIntolerance into our models and condition flags; recorded fixtures; incremental sync with a cursor and retries; an integration health page; HMAC-signed outbound webhooks for appointment status changes.
 - [ ] Part 6 — Risk model v2 (`v1.9.0`): synthetic history, calibrated logistic regression with per-feature explanations, versioned model files chosen by config (v1 rules stay the default), docs/model_report.md, and "Model: v1 rules / v2 ML" on the dashboard.
 - [ ] Part 7 — Release `v2.0.0`: full suite, Playwright on desktop and mobile with axe, a fresh-clone check of the README quick start, and updated README, PROGRESS, docs/COMPLIANCE.md and docs/HOW_IT_WORKS_HINDI.md.
 
-**Known gaps before a real hospital goes live** (details in [docs/COMPLIANCE.md](docs/COMPLIANCE.md)): no retention schedule or erasure job; no subject-access export; no breach-notification workflow; no first-admin command for a real hospital (the seed creates demonstration data only); vendor agreements (Twilio, SMTP, Anthropic) are the hospital's to sign.
+**Known gaps before a real hospital goes live** (details in [docs/COMPLIANCE.md](docs/COMPLIANCE.md)): erasure overwrites the live database, but backups keep old copies until they expire (per-patient keys in a key service would close that); clinical review of every protocol ([docs/CLINICAL_REVIEW_CHECKLIST.md](docs/CLINICAL_REVIEW_CHECKLIST.md)); vendor agreements (Twilio, SMTP, Anthropic; BAAs in the US) are the hospital's to sign.
 
-**Known limits in the release:** rate limits live in one API process; the content policy allows inline scripts (Next.js page data); the patient portal's first load can exceed 5 seconds under a full parallel test run; PII key rotation has no re-encryption job; analytics does not yet count backfilled slots.
+**Known limits in the release:** every web page renders per request, because the script nonce rules out prerendered shells; the patient portal's first load can exceed 5 seconds under a full parallel test run; PII key rotation has no re-encryption job; analytics does not yet count backfilled slots.
 
 **Future work, in rough order:**
-1. A first-admin bootstrap command, and the retention and erasure job, both needed before go-live.
-2. A shared rate-limit store (Redis) before running more than one API process.
-3. FHIR R4 read and write for `Patient`, `Appointment`, `ServiceRequest`, `Procedure` and `MedicationStatement` (see [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)).
-4. Background processing for large CSV imports, and a re-encryption job for PII keys.
-5. Nonce-based content policy, and a subject-access export.
+1. FHIR R4 (Part 5), then risk model v2 (Part 6).
+2. Per-patient encryption keys in a key-management service, so erasure also reaches backups.
+3. Background processing for large CSV imports, and a re-encryption job for PII keys.
+4. Forward the visitor's address from the web server (`X-Forwarded-For`, trusted only from it) for per-client limits and audit.
 
 **Revised order** (decided with the owner; numbers stay the same, the sequence changes):
 1. Phase 6 — AI Prep Assistant (finish)
@@ -235,7 +234,27 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   - Twilio itself was not called from this machine (no account values here). The providers are covered by tests against a mocked Twilio API, and the admin test message is the way to check a real account.
 - [x] **Part 3 — AI assistant live** · 2026-11-19 · `v1.6.0` · branch `part-3-assistant-live`
   With `ANTHROPIC_API_KEY` set, the assistant answers from the patient's own approved steps only, cites the steps it used, and answers in English or Hindi. These were already in place: answers that cite no provided step, or use numbers not in the cited steps, go to a nurse; red flags are checked before the LLM; out-of-protocol questions are escalated. New: `GET /assistant/status` tells the staff app which mode is on, and without a key the top bar shows "Assistant: nurse hand-off mode", with both modes explained on the Messaging page. De-identification now also removes record ids (UUIDs), and an end-to-end test sends a question containing a name, phone, e-mail and record ids through the real Claude client over a fake SDK and checks that none of them arrive. `make eval` writes [docs/eval_report.md](docs/eval_report.md).
-  Verified: 562 pytest, 147 Vitest, 18 Playwright, ruff, mypy, ESLint, tsc and Prettier clean. No key on this machine, so the eval ran its deterministic cases only (red flags and de-identification all pass) and reports the LLM cases as skipped. CI result is recorded at merge.
+  Verified: 562 pytest, 147 Vitest, 18 Playwright, ruff, mypy, ESLint, tsc and Prettier clean. No key on this machine, so the eval ran its deterministic cases only (red flags and de-identification all pass) and reports the LLM cases as skipped. CI green at merge: run 44547153100 (PR #7).
   **Notes:**
   - "View patient demo" now skips patients who already asked to reschedule. Otherwise a second run of the demo could open a patient for whom "I need to reschedule" is gone.
   - Run Playwright locally with `--workers=2`. With six workers this machine (16 GB, about 3 GB free) timed out across portal tests, while two workers pass. CI is unaffected.
+- [x] **Part 4 — Go-live compliance (HIPAA, India DPDP Act)** · 2026-11-19 · `v1.7.0` · branch `part-4-go-live-compliance`
+  - **Onboarding.** `uv run prefix-admin create-org` and `create-first-admin` set up a real hospital. The password is asked twice at a hidden prompt and is never printed, logged or audited.
+  - **Consent.** Every grant and withdrawal goes into `consent_record`, which is append-only by trigger. Staff record consent on the patient sheet's new Privacy tab, and a STOP reply (or बंद करो) withdraws it. Withdrawn consent blocks every reminder.
+  - **Data rights (admins only, audited).**
+    - Export as JSON or as a PDF built without a library.
+    - Erasure needs a tick and the patient's own phrase (`ERASE 01A1E942`), and waits until upcoming procedures are dealt with.
+    - It removes identifiers and free text, ends portal sessions, and keeps de-identified ids, dates and outcomes.
+  - **Retention.** Each hospital sets its period on the new Compliance page, after a dry run. The worker purges nightly at 02:15 India time and keeps patients with care to come or on an open incident.
+  - **Incidents.** Record a breach, add affected patients by MRN, follow the 72-hour deadline, and download a report for the authority that holds counts only ([docs/BREACH_RESPONSE.md](docs/BREACH_RESPONSE.md)).
+  - **Hardening.** Rate limits are shared through Redis, with an in-process fallback. Web scripts run only with a fresh nonce per request.
+  - **Checklist.** [docs/CLINICAL_REVIEW_CHECKLIST.md](docs/CLINICAL_REVIEW_CHECKLIST.md) covers protocol review, and the app never approves anything by itself.
+
+  Verified: 605 pytest (1 more, against a real Redis, runs in CI only), 161 Vitest and 20 Playwright (2 new CSP checks). ruff, mypy, ESLint, tsc and Prettier are clean. CI result is recorded at merge.
+  **Notes:**
+  - **Erasure is not crypto-shredding.** The request asked for crypto-shredding. What was built overwrites every identifying value in the live database. Older copies stay in backups, readable by the key holder, until the backups expire. Per-patient keys held in a key service, destroyed on erasure, would reach the backups too. That would mean replacing the column-level encryption, so it is logged below instead of being half-built.
+  - **No more prerendered pages.** CSP nonces cannot reach prerendered static shells, and with `cacheComponents` every page had one, so all their scripts were blocked. `cacheComponents` and `partialPrefetching` are now off (no code used `"use cache"`), and the root layout reads the request, so every page renders per request. The Playwright run got faster (1.9 min, from 4.2).
+  - **Default PDF font is Latin only.** Hindi values in the PDF point to the JSON export, which keeps every character.
+  - **Migration 0012** adds `consent_record`, `security_incident`, `security_incident_patient`, `patient.erased_at` and `organization.retention_days`.
+  **Known issue:**
+  - Erasure does not reach backups: see the first note. The fix is per-patient keys in a key-management service.

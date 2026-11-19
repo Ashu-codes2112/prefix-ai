@@ -146,6 +146,9 @@ Implemented in `apps/api/src/prefix_api/db/models/` (migration `0002`). Every te
 - **Tenant isolation:** the organization comes only from the token, never from the request body. A record in another organization returns 404.
 - **Audit (safety rule d):** services write audit rows in the same transaction as the access. The DB session commits *before* the response is sent. A middleware backstop logs an error and writes a generic audit row if a patient-data route ever succeeds without one.
 - **PII at rest:** see Patient above. Keys come from `PII_ENCRYPTION_KEYS` (rotation supported) and `PII_BLIND_INDEX_KEY`. Development keys are rejected in production.
+- **Rate limits:** `core/rate_limit.py` keeps sliding windows in Redis (one Lua script per check) when `REDIS_URL` is set, so every API process shares them. It falls back to the process's own window if Redis stops answering.
+- **Web content policy:** `src/proxy.ts` sets a fresh script nonce on every page request (`src/lib/csp.ts`), and Next.js puts it on its own scripts. The root layout reads the request, so pages render per request; a prerendered shell would carry no nonce.
+- **Data rights and compliance:** `services/consent.py` (append-only consent history, STOP replies), `services/data_rights.py` (export and erasure), `services/export_pdf.py` (a PDF without a library), `services/retention.py` (nightly purge, `prefix_worker.retention.purge`), `services/incidents.py` (the 72-hour breach workflow) and `services/onboarding.py` with `cli.py` (`prefix-admin`). All are admin-only except consent, and all are audited.
 
 ## 5. Protocol Engine (safety rule a)
 

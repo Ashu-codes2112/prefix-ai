@@ -230,8 +230,10 @@ Version 1.2 redesigned both apps as a calm medical service with Apple-style moti
 
 - [Architecture](docs/ARCHITECTURE.md): data flow, entities, security model, timeline, portal, integrations.
 - [Compliance](docs/COMPLIANCE.md): how HIPAA and DPDP duties are met, and the gaps.
+- [Breach response](docs/BREACH_RESPONSE.md): the 72-hour incident workflow.
+- [Clinical review checklist](docs/CLINICAL_REVIEW_CHECKLIST.md): what a clinician checks before approving a protocol.
 - [Design](docs/DESIGN.md): tokens, motion, navigation map and patient Updates.
-- [Deployment](docs/DEPLOYMENT.md): what runs, the environment, the steps, backups, and the known limits.
+- [Deployment](docs/DEPLOYMENT.md): what runs, the environment, setting up a hospital with `prefix-admin`, backups, and the known limits.
 - [Integrations](docs/INTEGRATIONS.md): CSV import formats and the FHIR plan.
 - [Risk model](docs/model_report.md): what the cancellation score uses and where it is weak.
 

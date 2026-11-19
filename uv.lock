@@ -1144,7 +1144,7 @@ wheels = [
 
 [[package]]
 name = "prefix-api"
-version = "1.6.0"
+version = "1.7.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "alembic" },
@@ -1187,7 +1187,7 @@ requires-dist = [
 
 [[package]]
 name = "prefix-worker"
-version = "1.6.0"
+version = "1.7.0"
 source = { editable = "apps/worker" }
 dependencies = [
     { name = "celery", extra = ["redis"] },
