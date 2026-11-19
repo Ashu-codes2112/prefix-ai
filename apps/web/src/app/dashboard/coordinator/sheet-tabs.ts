@@ -5,6 +5,7 @@ export const SHEET_TABS = [
   "messages",
   "requests",
   "activity",
+  "privacy",
 ] as const;
 
 export type SheetTab = (typeof SHEET_TABS)[number];

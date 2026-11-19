@@ -4,8 +4,10 @@ import type {
   AnalyticsSummary,
   AssistantStatus,
   Badges,
+  ConsentStatus,
   Drawer,
   EscalationItem,
+  Incident,
   Me,
   MessagingStatus,
   PatientSummary,
@@ -15,6 +17,7 @@ import type {
   QueueItem,
   ReleasedSlot,
   RescheduleRequest,
+  RetentionReport,
   Role,
   StaffNotificationFeed,
   StaffNotificationSummary,
@@ -235,4 +238,48 @@ const MESSENGERS: ReadonlySet<Role> = new Set([
 /** Mirrors the API's MESSAGE_SEND permission. */
 export function canMessagePatients(role: Role): boolean {
   return MESSENGERS.has(role);
+}
+
+/** Mirrors the API's PATIENT_WRITE permission: who may record or withdraw consent. */
+export function canRecordConsent(role: Role): boolean {
+  return role === "ADMIN" || role === "COORDINATOR";
+}
+
+/** Mirrors the API: export, erasure, retention and incidents are for administrators only. */
+export function canManageCompliance(role: Role): boolean {
+  return role === "ADMIN";
+}
+
+/** The patient's current consent and its history (audited by the API). Null if hidden. */
+export async function getConsentStatus(
+  patientId: string,
+): Promise<ConsentStatus | null> {
+  try {
+    return await guarded(
+      api<ConsentStatus>(`/patients/${encodeURIComponent(patientId)}/consent`),
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) return null;
+    throw error;
+  }
+}
+
+/** What an admin must type to erase this patient. Derived from the id only. */
+export async function getErasurePhrase(patientId: string): Promise<string> {
+  const { phrase } = await guarded(
+    api<{ phrase: string }>(
+      `/patients/${encodeURIComponent(patientId)}/erasure`,
+    ),
+  );
+  return phrase;
+}
+
+/** A dry run of tonight's retention purge, in counts. */
+export function getRetentionReport(): Promise<RetentionReport> {
+  return guarded(api<RetentionReport>("/compliance/retention"));
+}
+
+/** Security incidents, newest discovery first. */
+export function listIncidents(): Promise<Incident[]> {
+  return guarded(api<Incident[]>("/compliance/incidents"));
 }

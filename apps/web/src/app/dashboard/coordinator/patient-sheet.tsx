@@ -38,6 +38,7 @@ import {
   reschedule,
   resendFailed,
 } from "./actions";
+import { type Privacy, PrivacyTab } from "./privacy-tab";
 import { RescheduleFields } from "./reschedule-fields";
 import type { SheetTab } from "./sheet-tabs";
 import { type Filter, readinessTone, RiskPill } from "./upcoming-table";
@@ -723,12 +724,15 @@ export function PatientSheet({
   filter,
   role,
   tab = "overview",
+  privacy,
 }: {
   drawer: Drawer;
   filter: Filter;
   role: Role;
   /** The tab to open on, e.g. the prep timeline for a reported problem. */
   tab?: SheetTab;
+  /** Consent and data rights, loaded on the server; without it the tab is not shown. */
+  privacy?: Privacy;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
@@ -793,6 +797,17 @@ export function PatientSheet({
             label: "Activity",
             content: <ActivityTab drawer={drawer} />,
           },
+          ...(privacy
+            ? [
+                {
+                  value: "privacy",
+                  label: "Privacy",
+                  content: (
+                    <PrivacyTab patientId={row.patient_id} privacy={privacy} />
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
     </Sheet>

@@ -8,6 +8,7 @@ import {
   ListChecks,
   type LucideIcon,
   MessageSquareText,
+  ShieldCheck,
   Upload,
   Users,
 } from "lucide-react";
@@ -80,6 +81,11 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/dashboard/messaging",
         label: "Messaging",
         icon: MessageSquareText,
+      },
+      {
+        href: "/dashboard/compliance",
+        label: "Compliance",
+        icon: ShieldCheck,
       },
     ],
   },

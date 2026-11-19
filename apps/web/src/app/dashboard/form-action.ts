@@ -21,7 +21,7 @@ function failure(error: unknown): string {
  */
 export async function performAction(
   path: string,
-  options: { method: "POST"; body?: unknown },
+  options: { method: "POST" | "PUT"; body?: unknown },
   success: string,
 ): Promise<ActionResult> {
   try {
