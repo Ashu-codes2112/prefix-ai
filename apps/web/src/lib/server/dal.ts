@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   AnalyticsSummary,
+  AssistantStatus,
   Badges,
   Drawer,
   EscalationItem,
@@ -175,6 +176,18 @@ export const getMessagingStatus = cache(
   async (): Promise<MessagingStatus | null> => {
     try {
       return await guarded(api<MessagingStatus>("/messaging/status"));
+    } catch (error) {
+      if (error instanceof ApiError) return null;
+      throw error;
+    }
+  },
+);
+
+/** Whether the assistant answers or hands every question to a nurse. Null if unknown. */
+export const getAssistantStatus = cache(
+  async (): Promise<AssistantStatus | null> => {
+    try {
+      return await guarded(api<AssistantStatus>("/assistant/status"));
     } catch (error) {
       if (error instanceof ApiError) return null;
       throw error;

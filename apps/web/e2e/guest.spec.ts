@@ -20,6 +20,16 @@ test("a guest tries the demo: sees the demo banner, the nurse inbox and a demo p
   await expect(
     page.getByText("Only admins can send a test message."),
   ).toBeVisible();
+  // No ANTHROPIC_API_KEY in tests either: every question goes to a nurse, and the app says so.
+  await expect(
+    page.getByRole("link", { name: "Assistant: nurse hand-off mode" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      level: 2,
+      name: "Assistant: nurse hand-off mode",
+    }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Inbox" }).click();
   await expect(

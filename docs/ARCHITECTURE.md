@@ -48,6 +48,8 @@
 
 All LLM calls go through one `LLMClient` wrapper in the API/worker. It applies the PHI redactor, injects the patient's approved protocol as the only grounding source, reads the model from `LLM_MODEL`, and records the interaction (without PHI) in the audit log.
 
+The redactor (`domain/deidentify.py`) replaces e-mails, URLs, record ids (UUIDs), dates, MRN-like codes, phone numbers, long digit runs and the patient's own names. A test sends a question with all of them through the real Claude client over a fake SDK and checks that none arrive. Without `ANTHROPIC_API_KEY` the assistant is in nurse hand-off mode: every question becomes an escalation. `GET /assistant/status` reports the mode, and the staff top bar shows it.
+
 ## 2. Data flow: procedure scheduled → coordinator action
 
 ```

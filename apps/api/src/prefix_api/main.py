@@ -27,6 +27,7 @@ from prefix_api.routers import (
     admin,
     analytics,
     appointments,
+    assistant_status,
     auth,
     badges,
     dashboard,
@@ -130,5 +131,6 @@ def create_app(
     app.include_router(badges.router)
     app.include_router(staff_notifications.router)
     app.include_router(messaging.router)
+    app.include_router(assistant_status.router)
     app.include_router(webhooks.router)
     return app

@@ -1,12 +1,14 @@
 """The AI Prep Assistant pipeline: grounded answers, or a person (safety rules a, b, d)."""
 
 import datetime as dt
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from api_testkit import Builder, patient_headers
+from api_testkit import Builder, patient_headers, staff_headers
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from messaging_testkit import Booked, book
@@ -22,9 +24,16 @@ from prefix_api.domain.enums import (
     AuditAction,
     EscalationSeverity,
     EscalationSource,
+    Role,
     TaskType,
 )
-from prefix_api.services.assistant.llm import Answer, AssistantLLMError, StepContext, Triage
+from prefix_api.services.assistant.llm import (
+    Answer,
+    AssistantLLMError,
+    ClaudeAssistantLLM,
+    StepContext,
+    Triage,
+)
 from prefix_api.services.assistant.service import EMERGENCY_REPLY, NURSE_REPLY
 
 ABOUT_PREP = Triage(red_flag=False, about_prep=True, reason="diet question")
@@ -320,3 +329,74 @@ def test_history_returns_the_patients_exchanges_and_is_audited(
         )
     ).all()
     assert sorted(actions) == sorted([AuditAction.CREATE] * 2 + [AuditAction.READ] * 2)
+
+
+def test_no_name_phone_email_or_record_id_reaches_the_llm(
+    app: FastAPI, client: TestClient, settings: Settings, booked: Booked
+) -> None:
+    """Safety rule c, end to end: the real Claude client, with a fake SDK underneath, sees only
+    redacted text and pseudonymous step references."""
+    sent: list[dict[str, Any]] = []
+
+    def create(**kwargs: Any) -> Any:
+        sent.append(kwargs)
+        triage = len(sent) == 1
+        payload = (
+            {"red_flag": False, "about_prep": True, "reason": "diet"}
+            if triage
+            else {"covered": True, "answer": "Eat low-fibre food.", "cited_steps": ["S1"]}
+        )
+        return SimpleNamespace(
+            stop_reason="end_turn",
+            content=[SimpleNamespace(type="text", text=json.dumps(payload))],
+        )
+
+    sdk: Any = SimpleNamespace(messages=SimpleNamespace(create=create))
+    app.state.assistant_llm = ClaudeAssistantLLM(sdk, model="test-model")
+    patient = booked.patient
+    question = (
+        f"I am {patient.first_name} {patient.last_name}, phone {patient.phone}, "
+        f"e-mail {patient.email}, booking {booked.appointment.id}, "
+        f"patient {patient.id}. Can I eat rice?"
+    )
+
+    reply = ask(client, settings, booked, question)
+
+    assert reply["outcome"] == "ANSWERED"
+    assert len(sent) == 2
+    everything = json.dumps(sent, default=str)
+    for identifier in (
+        patient.first_name,
+        patient.last_name,
+        patient.phone,
+        patient.email,
+        str(booked.appointment.id),
+        str(patient.id),
+    ):
+        assert identifier is not None
+        assert identifier not in everything, identifier
+    assert "[NAME]" in everything
+    assert "[ID]" in everything
+
+
+def test_without_a_key_staff_are_told_it_is_nurse_hand_off_mode(
+    client: TestClient, settings: Settings, build: Builder, booked: Booked
+) -> None:
+    org = build.organization()
+    staff = staff_headers(settings, build.user(org, Role.COORDINATOR))
+
+    status = client.get("/assistant/status", headers=staff).json()
+
+    assert status == {"mode": "nurse_handoff", "model": None}
+    patient = patient_headers(settings, booked.patient)
+    assert client.get("/assistant/status", headers=patient).status_code == 401
+
+
+def test_with_an_llm_the_assistant_is_live_and_names_its_model(
+    client: TestClient, settings: Settings, build: Builder, llm: FakeLLM
+) -> None:
+    staff = staff_headers(settings, build.user(build.organization(), Role.NURSE))
+
+    status = client.get("/assistant/status", headers=staff).json()
+
+    assert status == {"mode": "live", "model": "fake-model"}

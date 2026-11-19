@@ -253,6 +253,14 @@ export interface MessagingTestResult {
   detail: string;
 }
 
+/* Assistant status (see apps/api/src/prefix_api/schemas/assistant.py). */
+
+/** "nurse_handoff": no ANTHROPIC_API_KEY, so every patient question goes to a nurse. */
+export interface AssistantStatus {
+  mode: "live" | "nurse_handoff";
+  model: string | null;
+}
+
 /* Staff notifications (see apps/api/src/prefix_api/schemas/staff_notifications.py). */
 
 /** Fixed rules, never an LLM (apps/api/src/prefix_api/domain/urgency.py). */

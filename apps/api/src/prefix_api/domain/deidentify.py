@@ -20,6 +20,13 @@ _MONTHS = (
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")),
     ("URL", re.compile(r"\b(https?://|www\.)\S+", re.IGNORECASE)),
+    # Record ids (UUIDs), before dates and phones, which would match pieces of them.
+    (
+        "ID",
+        re.compile(
+            r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE
+        ),
+    ),
     (
         "DATE",
         re.compile(

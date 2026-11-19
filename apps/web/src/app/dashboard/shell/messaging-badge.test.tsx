@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MessagingBadge } from "./messaging-badge";
+import { AssistantBadge, MessagingBadge } from "./messaging-badge";
 
 describe("messaging badge", () => {
   it("says so in demo mode, and links to the messaging page", () => {
@@ -17,6 +17,22 @@ describe("messaging badge", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
 
     rerender(<MessagingBadge mode={null} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+describe("assistant badge", () => {
+  it("says so in nurse hand-off mode", () => {
+    render(<AssistantBadge mode="nurse_handoff" />);
+
+    expect(
+      screen.getByRole("link", { name: "Assistant: nurse hand-off mode" }),
+    ).toHaveAttribute("href", "/dashboard/messaging#assistant-heading");
+  });
+
+  it("is not shown when the assistant answers", () => {
+    render(<AssistantBadge mode="live" />);
+
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

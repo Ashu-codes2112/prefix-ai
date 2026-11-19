@@ -1,11 +1,11 @@
-import type { MessagingStatus } from "@prefix/shared";
-import { FlaskConical, Radio } from "lucide-react";
+import type { AssistantStatus, MessagingStatus } from "@prefix/shared";
+import { Bot, FlaskConical, Radio, UserRound } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { getMessagingStatus } from "@/lib/server/dal";
+import { getAssistantStatus, getMessagingStatus } from "@/lib/server/dal";
 
 import { TestMessageForm } from "./test-message-form";
 
@@ -22,8 +22,48 @@ function Senders({ status }: { status: MessagingStatus }) {
   );
 }
 
+function Assistant({ status }: { status: AssistantStatus | null }) {
+  const live = status?.mode === "live";
+  return (
+    <section
+      aria-labelledby="assistant-heading"
+      className="flex scroll-mt-20 flex-col gap-3 rounded-2xl border bg-card p-5 shadow-card"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {live ? (
+          <Bot className="size-4 text-ready" aria-hidden />
+        ) : (
+          <UserRound className="size-4 text-attention" aria-hidden />
+        )}
+        <h2
+          id="assistant-heading"
+          className="text-lg font-semibold tracking-tight"
+        >
+          {live ? "Assistant: live" : "Assistant: nurse hand-off mode"}
+        </h2>
+        {live && status?.model ? (
+          <Badge variant="ready">{status.model}</Badge>
+        ) : null}
+      </div>
+      <p className="text-sm">
+        {live
+          ? "The assistant answers patients only from their own approved prep plan, in English or Hindi, and names the steps it used. Anything else goes to a nurse."
+          : "No ANTHROPIC_API_KEY is set, so every question a patient asks goes to the nurse inbox. Set it to let the assistant answer from the approved plan."}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        Red-flag symptoms always go to a nurse, in either mode, and the patient
+        is told to call 112. Names, phone numbers and record ids are removed
+        before a question reaches the model.
+      </p>
+    </section>
+  );
+}
+
 async function Board() {
-  const status = await getMessagingStatus();
+  const [status, assistant] = await Promise.all([
+    getMessagingStatus(),
+    getAssistantStatus(),
+  ]);
   if (status === null) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -68,6 +108,8 @@ async function Board() {
         ) : null}
       </section>
 
+      <Assistant status={assistant} />
+
       <section
         aria-labelledby="test-heading"
         className="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-card"
@@ -102,7 +144,8 @@ export default function MessagingPage() {
           Messaging
         </h1>
         <p className="text-sm text-muted-foreground">
-          How reminders reach patients, and a way to check it.
+          How reminders reach patients, whether the assistant answers, and a way
+          to check messages arrive.
         </p>
       </div>
       <Suspense fallback={<SkeletonList label="Loading" rows={2} />}>

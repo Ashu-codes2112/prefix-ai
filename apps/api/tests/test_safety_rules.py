@@ -80,6 +80,8 @@ def test_several_flags_at_once() -> None:
         ("booked for 14 November 2026 at 9", "booked for [DATE] at 9"),
         ("on March 3rd", "on [DATE]"),
         ("pin code 560001", "pin code [ID]"),
+        # Record ids: a UUID used to come out as "01a1e942-d9c9-[PHONE]-1df7766ae320".
+        ("booking 01a1e942-d9c9-7370-8722-1df7766ae320 please", "booking [ID] please"),
         ("my name is Rahul and I take metformin", "my name is [NAME] and I take metformin"),
     ],
 )

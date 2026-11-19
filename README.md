@@ -213,7 +213,11 @@ Start the app and seed the demo (see [Quick start](#quick-start), or `make up`, 
 
    <img src="docs/screenshots/07-portal-english-mobile.png" alt="Patient portal home in English on a phone" width="260"> <img src="docs/screenshots/08-portal-hindi-mobile.png" alt="Patient portal home in Hindi on a phone" width="260"> <img src="docs/screenshots/10-portal-updates-mobile.png" alt="Patient portal Updates on a phone" width="260">
 
-9. **AI assistant.** Under Help, the patient asks about their own prep. With no Anthropic key set, a question the plan cannot answer goes to a nurse, as in this picture. With a key, the assistant answers only from the patient's own plan.
+9. **AI assistant.** Under Help, the patient asks about their own prep.
+   - **With `ANTHROPIC_API_KEY` set**, the assistant answers only from the patient's own approved plan, in English or Hindi, and names the steps it used. The model is whatever `LLM_MODEL` says.
+   - **Without the key**, every question goes to a nurse, as in this picture, and the staff top bar shows **Assistant: nurse hand-off mode**.
+   - **Either way**, red-flag symptoms and questions the plan does not answer go to a nurse. Names, phone numbers, e-mails and record ids are removed before anything reaches the model.
+   - `make eval` (or `uv run python apps/api/evals/run_assistant_eval.py --markdown docs/eval_report.md`) checks the labelled cases and writes [docs/eval_report.md](docs/eval_report.md).
 
    <img src="docs/screenshots/09-assistant-chat-mobile.png" alt="AI assistant on a phone" width="300">
 
