@@ -49,6 +49,8 @@ from prefix_api.domain.enums import (
     MessageChannel,
     Role,
     StaffNotificationKind,
+    TaskStatus,
+    TaskType,
 )
 from prefix_api.domain.errors import AuthenticationError, NotFoundError, PermissionDeniedError
 from prefix_api.domain.permissions import Permission
@@ -692,7 +694,18 @@ def demo_patient_link(
     )
     if not patients:
         raise NotFoundError(f"No demo patient speaks '{language}'")
-    patient = secrets.choice(patients)
+    # Someone who already asked to reschedule cannot ask again, so the demo's "I need to
+    # reschedule" step would be missing. Prefer patients without an open request.
+    waiting = set(
+        session.scalars(
+            select(Task.patient_id).where(
+                Task.organization_id == org.id,
+                Task.type == TaskType.RESCHEDULE,
+                Task.status.in_([TaskStatus.OPEN, TaskStatus.IN_PROGRESS]),
+            )
+        )
+    )
+    patient = secrets.choice([p for p in patients if p.id not in waiting] or patients)
     principal = StaffPrincipal(user_id=guest.id, organization_id=org.id, role=Role.DEMO_VIEWER)
     issued = PatientAccessService(session, settings).issue_magic_link(
         principal, patient.id, now=now

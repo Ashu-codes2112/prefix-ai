@@ -17,6 +17,7 @@ from prefix_api.core.config import Settings
 from prefix_api.db.models import (
     Appointment,
     Organization,
+    Patient,
     PatientTimelineEvent,
     PrepProtocol,
     PrepStep,
@@ -223,6 +224,49 @@ def test_a_guest_can_open_a_fresh_link_to_a_hindi_speaking_demo_patient(
     token = url.split("#token=")[1]
     session = client.post("/patient/session", json={"token": token})
     assert session.status_code == 200
+
+
+def test_the_patient_demo_skips_patients_who_already_asked_to_reschedule(
+    client: TestClient, db_session: Session, demo: dict[str, Any]
+) -> None:
+    # A second run of the demo must still offer "I need to reschedule".
+    now = dt.datetime.now(dt.UTC)
+    org_id = demo["org"].id
+    upcoming = (
+        select(Appointment.patient_id)
+        .where(Appointment.organization_id == org_id, Appointment.scheduled_at > now)
+        .distinct()
+    )
+    english = list(
+        db_session.scalars(
+            select(Patient)
+            .where(Patient.id.in_(upcoming), Patient.preferred_language == "en")
+            .order_by(Patient.id)
+        )
+    )
+    assert len(english) >= 2
+    free, *asked = english
+    db_session.add_all(
+        Task(
+            organization_id=org_id,
+            patient_id=p.id,
+            type=TaskType.RESCHEDULE,
+            title="Reschedule request",
+            status=TaskStatus.OPEN,
+        )
+        for p in asked
+    )
+    db_session.commit()
+    headers = guest_headers(client)
+
+    names = {
+        client.post("/demo/patient-link", headers=headers, params={"lang": "en"}).json()[
+            "patient_name"
+        ]
+        for _ in range(5)
+    }
+
+    assert names == {f"{free.first_name} {free.last_name}"}
 
 
 def test_demo_messages_are_logged_never_sent(
