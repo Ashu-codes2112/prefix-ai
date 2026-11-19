@@ -12,6 +12,15 @@ test("a guest tries the demo: sees the demo banner, the nurse inbox and a demo p
     page.getByRole("status").filter({ hasText: "Demo mode" }),
   ).toBeVisible();
 
+  // No Twilio values in tests, so messages are only logged, and the app says so.
+  await page.getByRole("link", { name: "Messaging: demo mode" }).click();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Messaging: demo mode" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Only admins can send a test message."),
+  ).toBeVisible();
+
   await page.getByRole("link", { name: "Inbox" }).click();
   await expect(
     page.getByRole("heading", { name: "Nurse inbox" }),
