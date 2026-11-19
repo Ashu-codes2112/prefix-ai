@@ -4,14 +4,14 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 
 ## Resume point
 
-**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, the live assistant v1.6.0 on 2026-11-19, and go-live compliance v1.7.0 on 2026-11-19 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
+**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, the live assistant v1.6.0 on 2026-11-19, go-live compliance v1.7.0 on 2026-11-19, and FHIR R4 v1.8.0 on 2026-11-19 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
 **Goal:** demo-ready v1.0.0 as fast as possible, without weakening the safety rules. Speed rules: related tests while developing, full suite once per plan item, Playwright once per phase, pre-commit on changed files, push after each item, wait for CI only before merging into main. About 60–90 minutes per phase. A problem that takes over 15 minutes is logged under "Known issues" and skipped.
 **Road to v2.0.0** (one branch per part, `part-<n>-<name>`; merge after green CI; tag a minor version per part, then `v2.0.0`):
 - [x] Part 1 — Demo parity (`v1.4.0`).
 - [x] Part 2 — Real messaging (`v1.5.0`).
 - [x] Part 3 — AI assistant live (`v1.6.0`).
 - [x] Part 4 — Go-live compliance, HIPAA and India DPDP Act (`v1.7.0`).
-- [ ] Part 5 — FHIR R4 (`v1.8.0`): Patient, Appointment, MedicationStatement, Observation (eGFR, creatinine) and AllergyIntolerance into our models and condition flags; recorded fixtures; incremental sync with a cursor and retries; an integration health page; HMAC-signed outbound webhooks for appointment status changes.
+- [x] Part 5 — FHIR R4 (`v1.8.0`).
 - [ ] Part 6 — Risk model v2 (`v1.9.0`): synthetic history, calibrated logistic regression with per-feature explanations, versioned model files chosen by config (v1 rules stay the default), docs/model_report.md, and "Model: v1 rules / v2 ML" on the dashboard.
 - [ ] Part 7 — Release `v2.0.0`: full suite, Playwright on desktop and mobile with axe, a fresh-clone check of the README quick start, and updated README, PROGRESS, docs/COMPLIANCE.md and docs/HOW_IT_WORKS_HINDI.md.
 
@@ -20,7 +20,7 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 **Known limits in the release:** every web page renders per request, because the script nonce rules out prerendered shells; the patient portal's first load can exceed 5 seconds under a full parallel test run; PII key rotation has no re-encryption job; analytics does not yet count backfilled slots.
 
 **Future work, in rough order:**
-1. FHIR R4 (Part 5), then risk model v2 (Part 6).
+1. Risk model v2 (Part 6).
 2. Per-patient encryption keys in a key-management service, so erasure also reaches backups.
 3. Background processing for large CSV imports, and a re-encryption job for PII keys.
 4. Forward the visitor's address from the web server (`X-Forwarded-For`, trusted only from it) for per-client limits and audit.
@@ -250,7 +250,7 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   - **Hardening.** Rate limits are shared through Redis, with an in-process fallback. Web scripts run only with a fresh nonce per request.
   - **Checklist.** [docs/CLINICAL_REVIEW_CHECKLIST.md](docs/CLINICAL_REVIEW_CHECKLIST.md) covers protocol review, and the app never approves anything by itself.
 
-  Verified: 605 pytest (1 more, against a real Redis, runs in CI only), 161 Vitest and 20 Playwright (2 new CSP checks). ruff, mypy, ESLint, tsc and Prettier are clean. CI result is recorded at merge.
+  Verified: 605 pytest (1 more, against a real Redis, runs in CI only), 161 Vitest and 20 Playwright (2 new CSP checks). ruff, mypy, ESLint, tsc and Prettier are clean. CI green at merge: run 44558508155 (PR #8).
   **Notes:**
   - **Erasure is not crypto-shredding.** The request asked for crypto-shredding. What was built overwrites every identifying value in the live database. Older copies stay in backups, readable by the key holder, until the backups expire. Per-patient keys held in a key service, destroyed on erasure, would reach the backups too. That would mean replacing the column-level encryption, so it is logged below instead of being half-built.
   - **No more prerendered pages.** CSP nonces cannot reach prerendered static shells, and with `cacheComponents` every page had one, so all their scripts were blocked. `cacheComponents` and `partialPrefetching` are now off (no code used `"use cache"`), and the root layout reads the request, so every page renders per request. The Playwright run got faster (1.9 min, from 4.2).
@@ -258,3 +258,19 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   - **Migration 0012** adds `consent_record`, `security_incident`, `security_incident_patient`, `patient.erased_at` and `organization.retention_days`.
   **Known issue:**
   - Erasure does not reach backups: see the first note. The fix is per-patient keys in a key-management service.
+- [x] **Part 5 — FHIR R4 integration** · 2026-11-19 · `v1.8.0` · branch `part-5-fhir-r4`
+  - **Incremental sync.** It reads `Patient`, `MedicationStatement`, `Observation` (eGFR and creatinine) and `AllergyIntolerance` into patients and condition flags: on_anticoagulant, diabetic_on_insulin, on_glp1_agonist, has_contrast_allergy and egfr_value.
+  - **Bookings.** `Appointment` resources are booked through the coordinators' service, so only approved protocols apply, and they follow EHR cancellations, completions and new times.
+  - **Cursors and retries.** Per-type `_lastUpdated` cursors, Bundle paging, and three retries for network errors, 429 and 5xx (honouring `Retry-After`). Each record is applied in its own savepoint; a skipped one is reported by reason, never by value.
+  - **Admin page.** Admin → Integrations shows health, the last error, cursors and the last ten runs, with **Sync now**. The worker syncs every 15 minutes.
+  - **Webhooks.** HMAC-SHA256-signed outbound webhooks for appointment status changes use an outbox (one `before_flush` hook catches every code path) and retry with backoff.
+  - **Fixtures.** Recorded-style synthetic fixtures run in process for the tests and over HTTP in `scripts/fhir_mock_server.py`.
+
+  Verified: 653 pytest (1 more, against a real Redis, runs in CI only), 167 Vitest and 20 Playwright. ruff, mypy, ESLint, tsc and Prettier are clean. CI result is recorded at merge.
+  **Notes:**
+  - **Conditions only switch on.** A sync never clears a condition flag, even when the EHR stops a medicine; that is a person's decision. Synced patients have not consented to messages until staff record it.
+  - **eGFR from creatinine.** It uses the race-free CKD-EPI 2021 equation and the patient's sex, which is never stored. A new `egfr_measured_at` keeps an older result from replacing a newer one.
+  - **Erased patients.** Erasure now replaces the EHR's id with a keyed hash, so a sync recognises an erased patient and skips them.
+  - **Clinical review.** The medication and contrast lists in `domain/fhir.py` are inclusive on purpose (antiplatelets count as blood thinners; aspirin does not). The hospital's clinicians must review them.
+  - **Migration 0013** adds `integration_connection`, `integration_sync_run`, `webhook_endpoint`, `webhook_delivery`, `patient.external_id` and `patient.egfr_measured_at`.
+  - **Demo link.** "View patient demo" now also prefers a patient with a step still to confirm. A fully prepared patient has nothing to report a problem with.

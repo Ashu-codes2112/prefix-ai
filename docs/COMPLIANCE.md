@@ -36,6 +36,7 @@ Erasure removes, from the live database:
 - the patient's names, date of birth, phone, e-mail and MRN, and their lookup hashes;
 - message bodies, check-in replies, assistant questions and answers, and escalation and notification summaries;
 - cancellation notes and unused portal links.
+- the EHR's own id for the patient, replaced by a keyed hash so that a FHIR sync recognises the patient and does not bring their data back.
 
 Their portal sessions stop working at once. What stays has no identity: ids, dates, statuses and step outcomes, so analytics and the audit trail still add up. The audit log never held patient data, so it is kept whole as the record of what was done.
 
