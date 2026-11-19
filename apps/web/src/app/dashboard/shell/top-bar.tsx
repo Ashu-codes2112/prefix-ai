@@ -1,6 +1,11 @@
 "use client";
 
-import type { Badges, Me, MessagingMode } from "@prefix/shared";
+import type {
+  AssistantStatus,
+  Badges,
+  Me,
+  MessagingMode,
+} from "@prefix/shared";
 import { cn } from "cn";
 import {
   Bell,
@@ -26,7 +31,7 @@ import { spring } from "@/lib/motion";
 
 import { type PatientHit, searchPatients } from "./actions";
 import { pageTitle } from "./nav";
-import { MessagingBadge } from "./messaging-badge";
+import { AssistantBadge, MessagingBadge } from "./messaging-badge";
 import { NotificationPanel } from "./notification-panel";
 import { bellLabel } from "./notification-state";
 import { Brand, SidebarNav } from "./sidebar";
@@ -137,6 +142,7 @@ export function TopBar({
   canResetDemo,
   canSeeNotifications,
   messagingMode,
+  assistantMode,
 }: {
   user: Me;
   badges: Badges;
@@ -144,6 +150,8 @@ export function TopBar({
   canSeeNotifications: boolean;
   /** "demo" shows a badge: messages are logged, not sent. Null when unknown. */
   messagingMode: MessagingMode | null;
+  /** "nurse_handoff" shows a badge: every question goes to a nurse. Null when unknown. */
+  assistantMode: AssistantStatus["mode"] | null;
 }) {
   const pathname = usePathname();
   const { group, title } = pageTitle(pathname);
@@ -187,7 +195,10 @@ export function TopBar({
         <span className="truncate font-semibold">{title}</span>
       </p>
 
-      <MessagingBadge mode={messagingMode} />
+      <div className="hidden items-center gap-1.5 lg:flex">
+        <MessagingBadge mode={messagingMode} />
+        <AssistantBadge mode={assistantMode} />
+      </div>
 
       <Popover
         title="Find a patient"

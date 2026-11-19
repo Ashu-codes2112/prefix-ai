@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   canSeeNotifications,
+  getAssistantStatus,
   getBadges,
   getCurrentUser,
   getMessagingStatus,
@@ -34,10 +35,11 @@ async function SidebarSlot() {
 }
 
 async function TopBarSlot() {
-  const [user, badges, messaging] = await Promise.all([
+  const [user, badges, messaging, assistant] = await Promise.all([
     getCurrentUser(),
     getBadges(),
     getMessagingStatus(),
+    getAssistantStatus(),
   ]);
   return (
     <TopBar
@@ -46,6 +48,7 @@ async function TopBarSlot() {
       canResetDemo={user.role === "ADMIN"}
       canSeeNotifications={canSeeNotifications(user.role)}
       messagingMode={messaging?.mode ?? null}
+      assistantMode={assistant?.mode ?? null}
     />
   );
 }
