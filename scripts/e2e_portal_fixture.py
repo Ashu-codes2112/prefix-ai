@@ -136,12 +136,13 @@ def _hospital(
             # Known only to this throwaway test organisation, so E2E tests can sign in.
             password_hash=hash_password(STAFF_PASSWORD),
         )
-        for role in (Role.CLINICIAN, Role.COORDINATOR)
+        for role in (Role.CLINICIAN, Role.COORDINATOR, Role.ADMIN)
     }
     session.add_all([facility, procedure, *users.values()])
     session.flush()
     clinician, coordinator = (
-        StaffPrincipal(user_id=u.id, organization_id=org.id, role=u.role) for u in users.values()
+        StaffPrincipal(user_id=u.id, organization_id=org.id, role=u.role)
+        for u in (users[Role.CLINICIAN], users[Role.COORDINATOR])
     )
 
     protocols = ProtocolService(session, get_embedding_provider("local"))
@@ -182,6 +183,8 @@ def _hospital(
             coordinator, patient.id, now=now
         )
         links[key] = link.url
+    # The admin sees the Compliance and Integrations pages and the Privacy tab (a11y spec).
+    links["admin_email"] = users[Role.ADMIN].email
     return links, users[Role.COORDINATOR].email
 
 
@@ -271,7 +274,7 @@ def main() -> None:
             if isolated:
                 links, coordinator_email = _hospital(session, settings, PATIENTS, now)
                 bell_links, bell_email = _hospital(session, settings, BELL_PATIENTS, now)
-                links.update(bell_links)
+                links.update({k: v for k, v in bell_links.items() if k != "admin_email"})
                 links["staff_email"] = coordinator_email
                 links["bell_staff_email"] = bell_email
                 links["staff_password"] = STAFF_PASSWORD

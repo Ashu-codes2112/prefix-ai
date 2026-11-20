@@ -294,7 +294,7 @@ export function getIntegrationHealth(): Promise<IntegrationHealth> {
 
 /** The hospital's facilities, for choosing where synced bookings take place. */
 export function listFacilities(): Promise<FacilityOption[]> {
-  return guarded(api<FacilityOption[]>("/admin/facilities"));
+  return guarded(api<FacilityOption[]>("/facilities"));
 }
 
 /** Which cancellation risk model scores procedures. Null if the API cannot say. */
