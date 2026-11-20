@@ -77,6 +77,36 @@ test("the staff overview and the patient sheet are accessible", async ({
   await expectAccessible(page);
 });
 
+test("the admin pages and the Privacy tab are accessible", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(fixture().admin_email ?? "");
+  await page.getByLabel("Password").fill(fixture().staff_password ?? "");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/dashboard$/);
+
+  await page
+    .getByRole("link", { name: "Open Kavya Test" })
+    .click({ noWaitAfter: true });
+  const sheet = page.getByRole("dialog", { name: "Kavya Test" });
+  await sheet.getByRole("tab", { name: "Privacy" }).click();
+  await expect(
+    sheet.getByRole("button", { name: "Erase personal data…" }),
+  ).toBeVisible();
+  await expectAccessible(page);
+
+  await page.goto("/dashboard/compliance");
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Retention" }),
+  ).toBeVisible();
+  await expectAccessible(page);
+
+  await page.goto("/dashboard/integrations");
+  await expect(
+    page.getByRole("heading", { level: 2, name: "EHR sync (FHIR R4)" }),
+  ).toBeVisible();
+  await expectAccessible(page);
+});
+
 test("every portal tab is accessible", async ({ page }, testInfo) => {
   // Magic links are single-use, so each project has its own patient.
   const key =
