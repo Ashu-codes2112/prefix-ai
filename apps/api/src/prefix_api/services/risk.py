@@ -15,7 +15,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from prefix_api.core.config import RiskModelName, Settings, get_settings
+from prefix_api.core.config import RiskModelName, Settings
 from prefix_api.db.models import (
     Appointment,
     CheckIn,
@@ -78,8 +78,7 @@ def _logistic(path: Path | None) -> RiskModel:
     )
 
 
-def active_model(settings: Settings | None = None) -> RiskModel:
-    settings = settings or get_settings()
+def active_model(settings: Settings) -> RiskModel:
     if settings.risk_model == "v2":
         return _logistic(settings.risk_model_file)
     return RULES
@@ -147,16 +146,18 @@ def compute(
     appointment: Appointment,
     *,
     now: dt.datetime,
-    model: RiskModel | None = None,
+    model: RiskModel = RULES,
 ) -> RiskResult:
-    return (model or active_model()).score(gather(session, appointment, now=now))
+    return model.score(gather(session, appointment, now=now))
 
 
 def refresh(
-    session_factory: sessionmaker[Session], *, now: dt.datetime, model: RiskModel | None = None
+    session_factory: sessionmaker[Session], *, now: dt.datetime, model: RiskModel = RULES
 ) -> RefreshResult:
-    """Score every upcoming procedure in every hospital; open a task for each new HIGH one."""
-    model = model or active_model()
+    """Score every upcoming procedure in every hospital; open a task for each new HIGH one.
+
+    Callers pass the configured model (``active_model(settings)``); the rules are the default.
+    """
     scored = high = opened = 0
     with session_factory() as session:
         appointments = session.scalars(
