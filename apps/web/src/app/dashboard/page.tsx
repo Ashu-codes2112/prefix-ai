@@ -11,11 +11,13 @@ import {
   getCurrentUser,
   getErasurePhrase,
   getPatientDrawer,
+  getRiskModel,
   listUpcoming,
 } from "@/lib/server/dal";
 
 import { PatientSheet } from "./coordinator/patient-sheet";
 import type { Privacy } from "./coordinator/privacy-tab";
+import { RiskModelBadge } from "./coordinator/risk-model-badge";
 import { readSheetTab } from "./coordinator/sheet-tabs";
 import { SummaryCards, summarize } from "./coordinator/summary-cards";
 import {
@@ -116,6 +118,10 @@ async function Board({
   );
 }
 
+async function RiskModel() {
+  return <RiskModelBadge model={await getRiskModel()} />;
+}
+
 async function Demo() {
   const user = await getCurrentUser();
   if (user.role !== "DEMO_VIEWER" && user.role !== "ADMIN") return null;
@@ -132,9 +138,14 @@ export default function DashboardPage({
         <h1 className="text-[28px] leading-tight font-semibold tracking-tight">
           Overview
         </h1>
-        <p className="text-muted-foreground">
-          Procedures in the next 72 hours, least ready first.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-muted-foreground">
+            Procedures in the next 72 hours, least ready first.
+          </p>
+          <Suspense fallback={null}>
+            <RiskModel />
+          </Suspense>
+        </div>
       </header>
       <Suspense
         fallback={

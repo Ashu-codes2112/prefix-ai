@@ -662,3 +662,12 @@ export interface FacilityOption {
   id: string;
   name: string;
 }
+
+/* Cancellation risk model in use (see apps/api/src/prefix_api/routers/risk_model.py). */
+
+export interface RiskModelInfo {
+  name: "v1" | "v2";
+  version: string;
+  /** "v1 rules" or "v2 ML". */
+  label: string;
+}
