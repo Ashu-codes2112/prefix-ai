@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from prefix_api.api.deps import DbSession, Now, patient_data_route, require
 from prefix_api.domain.permissions import Permission
@@ -28,6 +28,14 @@ router = APIRouter(
 Reader = Annotated[StaffPrincipal, Depends(require(Permission.APPOINTMENT_READ))]
 Writer = Annotated[StaffPrincipal, Depends(require(Permission.APPOINTMENT_WRITE))]
 Queue = Annotated[StaffPrincipal, Depends(require(Permission.TASK_MANAGE))]
+
+
+def _dashboard(request: Request, session: DbSession) -> DashboardService:
+    # The risk model chosen at start-up from RISK_MODEL (v1 rules or v2 ML).
+    return DashboardService(session, risk_model=request.app.state.risk_model)
+
+
+Dashboard = Annotated[DashboardService, Depends(_dashboard)]
 
 
 def _upcoming(row: UpcomingRow, *, urgent_unread: bool = False) -> UpcomingOut:
@@ -101,33 +109,34 @@ def _drawer(drawer: Drawer) -> DrawerOut:
 def upcoming(
     principal: Reader,
     session: DbSession,
+    dashboard: Dashboard,
     now: Now,
     hours: Annotated[int, Query(ge=1, le=168)] = 72,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
 ) -> list[UpcomingOut]:
-    rows = DashboardService(session).upcoming(principal, now=now, hours=hours, limit=limit)
+    rows = dashboard.upcoming(principal, now=now, hours=hours, limit=limit)
     urgent = StaffNotificationService(session).unread_urgent_patients(principal, now=now)
     return [_upcoming(row, urgent_unread=row.patient.id in urgent) for row in rows]
 
 
 @router.get("/appointments/{appointment_id}")
 def appointment_drawer(
-    appointment_id: uuid.UUID, principal: Reader, session: DbSession, now: Now
+    appointment_id: uuid.UUID, principal: Reader, dashboard: Dashboard, now: Now
 ) -> DrawerOut:
-    return _drawer(DashboardService(session).drawer(principal, appointment_id, now=now))
+    return _drawer(dashboard.drawer(principal, appointment_id, now=now))
 
 
 @router.post("/appointments/{appointment_id}/resend-failed")
 def resend_failed(
-    appointment_id: uuid.UUID, principal: Writer, session: DbSession, now: Now
+    appointment_id: uuid.UUID, principal: Writer, dashboard: Dashboard, now: Now
 ) -> ResendOut:
-    count = DashboardService(session).resend_failed(principal, appointment_id, now=now)
+    count = dashboard.resend_failed(principal, appointment_id, now=now)
     return ResendOut(queued=count)
 
 
 @router.get("/queue")
-def task_queue(principal: Queue, session: DbSession, now: Now) -> list[QueueItemOut]:
-    items = DashboardService(session).queue(principal, now=now)
+def task_queue(principal: Queue, dashboard: Dashboard, now: Now) -> list[QueueItemOut]:
+    items = dashboard.queue(principal, now=now)
     return [
         QueueItemOut(
             id=item.task.id,

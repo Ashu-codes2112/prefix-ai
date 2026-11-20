@@ -2,7 +2,8 @@
 
 Each rule adds points and says why, so a coordinator sees the reasons, not a bare number. The
 weights are judgement calls, not fitted to data; docs/model_report.md says so and lists the
-limits. A learned model (logistic regression, calibrated) is future work.
+limits. Version 2, a calibrated logistic regression, is in domain/risk_v2.py; RISK_MODEL
+chooses between them, and this version stays the default.
 """
 
 from dataclasses import dataclass

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -18,6 +19,8 @@ type LogFormat = Literal["json", "console"]
 type MessagingProvider = Literal["auto", "console", "live"]
 type CeleryBroker = Literal["auto", "redis", "postgres"]
 type EmbeddingProviderName = Literal["local"]
+# v1: transparent rules (the default). v2: a calibrated logistic regression (docs/model_report.md).
+type RiskModelName = Literal["v1", "v2"]
 
 _PLACEHOLDER_SECRET_MARKER = "change-me"
 _DEV_KEY_ID_PREFIX = "dev"
@@ -59,6 +62,10 @@ class Settings(BaseSettings):
 
     anthropic_api_key: SecretStr | None = None
     llm_model: str = Field(min_length=1)
+
+    risk_model: RiskModelName = "v1"
+    # A v2 model file other than the bundled one (prefix_api/risk_models/lr-v2.json).
+    risk_model_file: Path | None = None
 
     jwt_secret: SecretStr = Field(min_length=32)
     jwt_issuer: str = "prefix-ai"
