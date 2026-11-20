@@ -4,7 +4,7 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 
 ## Resume point
 
-**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, the live assistant v1.6.0 on 2026-11-19, go-live compliance v1.7.0 on 2026-11-19, FHIR R4 v1.8.0 on 2026-11-19, and risk model v2 v1.9.0 on 2026-11-20 (see the last entries below). All phases 0–12 are merged. Now working towards v2.0.0 in parts (see "Road to v2.0.0").
+**Status:** Released. Version 1.0.0 shipped on 2026-10-28 (tag `v1.0.0`), with the polish release v1.0.1 on 2026-10-29 (local development guide, `corepack enable` setup, README quick start and screenshots) the UI redesign v1.2.0 on 2026-10-30, the staff notifications fix v1.3.0 on 2026-10-31, demo parity v1.4.0 on 2026-11-17, real messaging v1.5.0 on 2026-11-19, the live assistant v1.6.0 on 2026-11-19, go-live compliance v1.7.0 on 2026-11-19, FHIR R4 v1.8.0 on 2026-11-19, risk model v2 v1.9.0 on 2026-11-20, and **v2.0.0 on 2026-11-20** (see the last entries below). All phases 0–12 and Parts 1–7 are merged. Next: the real-world steps below, then the future work.
 **Goal:** demo-ready v1.0.0 as fast as possible, without weakening the safety rules. Speed rules: related tests while developing, full suite once per plan item, Playwright once per phase, pre-commit on changed files, push after each item, wait for CI only before merging into main. About 60–90 minutes per phase. A problem that takes over 15 minutes is logged under "Known issues" and skipped.
 **Road to v2.0.0** (one branch per part, `part-<n>-<name>`; merge after green CI; tag a minor version per part, then `v2.0.0`):
 - [x] Part 1 — Demo parity (`v1.4.0`).
@@ -13,14 +13,24 @@ Each phase gets a short plan before work starts. Tick a phase only when lint, ty
 - [x] Part 4 — Go-live compliance, HIPAA and India DPDP Act (`v1.7.0`).
 - [x] Part 5 — FHIR R4 (`v1.8.0`).
 - [x] Part 6 — Risk model v2 (`v1.9.0`).
-- [ ] Part 7 — Release `v2.0.0`: full suite, Playwright on desktop and mobile with axe, a fresh-clone check of the README quick start, and updated README, PROGRESS, docs/COMPLIANCE.md and docs/HOW_IT_WORKS_HINDI.md.
+- [x] Part 7 — Release `v2.0.0`.
+
+**Before a real hospital goes live** (the software is ready for a pilot; these steps are people's and contracts', not code):
+1. **Clinical review.** The clinical lead works through [docs/CLINICAL_REVIEW_CHECKLIST.md](docs/CLINICAL_REVIEW_CHECKLIST.md): every protocol, its Hindi text, the red-flag list, and the FHIR medication and contrast lists in `domain/fhir.py`.
+2. **Vendor agreements.** Sign data processing agreements with Twilio, the SMTP provider and Anthropic, and business associate agreements (BAAs) under HIPAA in the US. Check where each one stores data.
+3. **Privacy officer and breach owner.** Name them, rehearse [docs/BREACH_RESPONSE.md](docs/BREACH_RESPONSE.md) once, and publish a privacy notice that covers reminders, the assistant and retention.
+4. **Retention and backups.** Set the retention period on the Compliance page after reading its dry run. Write down the backup retention, because erasure does not reach backups (COMPLIANCE.md, "Erasure and backups").
+5. **Production settings.** `APP_ENV=production`, real keys in a secret manager, TLS, `REDIS_URL`, `ENABLE_GUEST_LOGIN=false`, and `prefix-admin` for the hospital and its first admin ([docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+6. **Consent.** Record how consent was obtained for every imported or FHIR-synced patient. Nothing is sent without it.
+7. **Risk model.** Keep `RISK_MODEL=v1` until v2 is refitted on the hospital's own outcomes and beats v1 on held-out data ([docs/model_report.md](docs/model_report.md)).
+8. **Accessibility and languages.** A fluent reviewer reads every Hindi string a patient sees, and a short test runs with real patients, including someone using a screen reader.
 
 **Known gaps before a real hospital goes live** (details in [docs/COMPLIANCE.md](docs/COMPLIANCE.md)): erasure overwrites the live database, but backups keep old copies until they expire (per-patient keys in a key service would close that); clinical review of every protocol ([docs/CLINICAL_REVIEW_CHECKLIST.md](docs/CLINICAL_REVIEW_CHECKLIST.md)); vendor agreements (Twilio, SMTP, Anthropic; BAAs in the US) are the hospital's to sign.
 
 **Known limits in the release:** every web page renders per request, because the script nonce rules out prerendered shells; the patient portal's first load can exceed 5 seconds under a full parallel test run; PII key rotation has no re-encryption job; analytics does not yet count backfilled slots.
 
 **Future work, in rough order:**
-1. Release v2.0.0 (Part 7), then refit risk model v2 on a hospital's own outcomes.
+1. Refit risk model v2 on a hospital's own outcomes.
 2. Per-patient encryption keys in a key-management service, so erasure also reaches backups.
 3. Background processing for large CSV imports, and a re-encryption job for PII keys.
 4. Forward the visitor's address from the web server (`X-Forwarded-For`, trusted only from it) for per-client limits and audit.
@@ -292,7 +302,14 @@ Tags follow CLAUDE.md's `v0.<n>.0` pattern for each phase's own number, so they 
   | Sensitivity at HIGH | 47% | 36% |
   | Precision at HIGH | 54% | 57% |
 
-  Verified: 664 pytest (1 more, against a real Redis, runs in CI only), 169 Vitest and 20 Playwright. ruff, mypy, ESLint, tsc and Prettier are clean. CI result is recorded at merge.
+  Verified: 664 pytest (1 more, against a real Redis, runs in CI only), 169 Vitest and 20 Playwright. ruff, mypy, ESLint, tsc and Prettier are clean. CI green at merge: run 44729975172 (PR #10).
   **Notes:**
   - **Synthetic data only.** Version 2 is fitted on synthetic data, and its figures show how well it recovers that process, not real-world accuracy. It stays opt-in until refitted on a hospital's own outcomes and shown to beat version 1 there (the report's first lines say so).
   - **Thresholds.** HIGH starts at 35% predicted probability and MEDIUM at 15%. They are judgement calls to revisit with real outcomes.
+- [x] **Part 7 — Release v2.0.0** · 2026-11-20 · `v2.0.0` · branch `part-7-release-v2`
+  - **Fresh clone.** A fresh clone of `main` followed the README quick start: `uv sync`, `pnpm install`, `.env`, migrations, seed, then the API, a guest login and the web app's sign-in page, all fine. It used a new database on the running dev PostgreSQL, because `scripts/dev_postgres.py` always binds port 55432. `corepack enable` needs admin rights on Windows; the README's `--install-directory` variant covers that.
+  - **Accessibility.** Playwright runs on desktop and phone sizes with axe WCAG 2.2 AA scans, now including the admin pages: Compliance, Integrations and the patient sheet's Privacy tab. The e2e fixture's test hospitals gained an admin for this.
+  - **Eval.** `make eval` with no `ANTHROPIC_API_KEY` passed: 17 of 17 red flags caught, 0 false alarms on 10 ordinary questions, and 8 LLM cases skipped, never counted as passed ([docs/eval_report.md](docs/eval_report.md)).
+  - **Docs.** README has "What's in v2.0" and the worker in the quick start. [docs/HOW_IT_WORKS_HINDI.md](docs/HOW_IT_WORKS_HINDI.md) explains every feature in Hinglish, with its flow, key files and a likely teacher question. COMPLIANCE.md and this file list what is still the hospital's to do.
+
+  Verified: 664 pytest (1 more, against a real Redis, runs in CI only), 169 Vitest and 22 Playwright (desktop and mobile, axe). ruff, mypy, ESLint, tsc and Prettier are clean. CI result is recorded at merge.

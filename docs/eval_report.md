@@ -1,6 +1,6 @@
 # AI Prep Assistant: evaluation report
 
-Run on 2026-11-19 with `make eval` over the 42 labelled cases in `apps/api/evals/assistant_cases.toml`. LLM cases were **skipped**: ANTHROPIC_API_KEY is not set. They are not counted as passed. Set the key and run `make eval` again to fill them in.
+Run on 2026-11-20 with `make eval` over the 42 labelled cases in `apps/api/evals/assistant_cases.toml`. LLM cases were **skipped**: ANTHROPIC_API_KEY is not set. They are not counted as passed. Set the key and run `make eval` again to fill them in.
 
 | Category | Pass | Fail | Skipped | Pass rate |
 | --- | ---: | ---: | ---: | ---: |

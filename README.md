@@ -16,11 +16,40 @@ uv run alembic -c apps/api/alembic.ini upgrade head
 uv run python -m prefix_api.seed                                 # the Demo Hospital; prints the admin password the first time
 uv run uvicorn prefix_api.main:create_app --factory --port 8000  # terminal 1: the API
 pnpm dev                                                         # terminal 2: the web app, then open http://localhost:3000
+uv run python scripts/dev_worker.py                              # terminal 3 (optional): reminders, risk, FHIR sync, webhooks
 ```
 
 **Sign in as a guest:** open http://localhost:3000/login and press **Try as Guest**. No password is needed. Or sign in as the demo admin, `admin@demo-hospital.example.com`, with the password the seed printed (set `SEED_ADMIN_PASSWORD` to choose it). Both are in the same Demo Hospital as **View patient demo**, so whatever the patient does there reaches the bell, the Inbox and Requests within 15 seconds. `make seed-demo` regenerates the synthetic patients.
 
 With Docker instead, run `make up`, `make migrate` and `make seed-demo`.
+
+## What's in v2.0
+
+- **Prep plans from approved protocols only**:
+  - a personal timeline for each patient;
+  - reminders by SMS, WhatsApp or e-mail through Twilio, logged in "demo mode" until it is configured;
+  - check-ins answered by YES, NO, HELP or STOP;
+  - a mobile patient portal in English and Hindi.
+- **AI Prep Assistant (Claude)**:
+  - answers only from the patient's own approved steps, cites them, and works in English and Hindi;
+  - red flags and anything else go to a nurse;
+  - without `ANTHROPIC_API_KEY`, it runs in nurse hand-off mode.
+- **Coordinator tools**:
+  - a worklist by cancellation risk, with v1 rules or the v2 calibrated model (`RISK_MODEL`);
+  - a bell that shows what patients raise within 15 seconds;
+  - waitlist backfill;
+  - analytics with revenue saved.
+- **Go-live compliance (HIPAA, India DPDP Act)**:
+  - `prefix-admin` onboarding and consent history;
+  - audited export and double-confirmed erasure;
+  - retention with a nightly purge;
+  - the 72-hour breach workflow;
+  - a script nonce per request.
+- **EHR integration**:
+  - an incremental FHIR R4 sync of patients, conditions and bookings, with a health page;
+  - HMAC-signed webhooks for appointment status changes.
+
+Every feature is explained simply, in Hinglish, in [docs/HOW_IT_WORKS_HINDI.md](docs/HOW_IT_WORKS_HINDI.md).
 
 ## Repository layout
 
@@ -235,6 +264,7 @@ Version 1.2 redesigned both apps as a calm medical service with Apple-style moti
 - [Design](docs/DESIGN.md): tokens, motion, navigation map and patient Updates.
 - [Deployment](docs/DEPLOYMENT.md): what runs, the environment, setting up a hospital with `prefix-admin`, backups, and the known limits.
 - [Integrations](docs/INTEGRATIONS.md): CSV import, the FHIR R4 sync (with a local mock server), and signed outbound webhooks.
+- [How it works, in Hinglish](docs/HOW_IT_WORKS_HINDI.md): every feature with its flow, key files and a likely teacher question.
 - [Risk model](docs/model_report.md): version 1 rules and version 2 calibrated logistic regression (AUC, calibration, confusion matrices), and where each is weak.
 
 ## Configuration

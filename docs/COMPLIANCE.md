@@ -1,6 +1,6 @@
 # Compliance
 
-This is an engineering summary of how Prefix AI meets the HIPAA (US) and India DPDP Act 2023 duties it is built for, with the gaps stated. It is not legal advice. A hospital deploying Prefix AI still needs its own privacy officer, its own agreements with its vendors, and a review of this file against its own obligations.
+This is an engineering summary of how Prefix AI v2.0 meets the HIPAA (US) and India DPDP Act 2023 duties it is built for, with the gaps stated. It was reviewed for the v2.0.0 release on 2026-11-20. It is not legal advice. A hospital deploying Prefix AI still needs its own privacy officer, its own agreements with its vendors, and a review of this file against its own obligations.
 
 ## Where personal data lives
 
@@ -49,6 +49,14 @@ Making backups unreadable too (crypto-shredding) needs a separate key for each p
 Protocols are only ever approved by a named person. See [CLINICAL_REVIEW_CHECKLIST.md](CLINICAL_REVIEW_CHECKLIST.md) for what a clinician checks before approving one, and what the clinical lead signs off before go-live.
 
 ## Vendors
+
+| Vendor | What it receives | When | Agreement to sign |
+|---|---|---|---|
+| Twilio (SMS, WhatsApp) | Phone number, the reminder or check-in text in the patient's language | Only when a reminder is due and the patient has consented; the Demo Hospital never sends | DPA; BAA for US covered entities |
+| SMTP provider (e-mail) | E-mail address and the reminder text | The same | DPA; BAA in the US |
+| Anthropic (Claude API) | The de-identified question and the patient's own approved steps, with no names, phone numbers, e-mails or record ids; translation of approved step text | Only with `ANTHROPIC_API_KEY` set | Commercial terms with zero-retention where offered; BAA in the US |
+| The hospital's EHR (FHIR R4, webhooks) | Read: patients, medications, kidney results, allergies, appointments. Sent: appointment ids and statuses only | When an admin connects it | Covered by the hospital's own EHR agreements |
+
 
 Prefix AI sends personal data to a messaging provider (Twilio for SMS and WhatsApp, SMTP for e-mail) only when a reminder is due and the patient has consented. It sends the AI assistant's prompt to the Claude API with names, phone numbers, e-mail addresses and record numbers removed. A patient's own question is passed on as written, so the assistant's answers must still be reviewed and red flags are escalated before the model is called. Each vendor relationship needs its own agreement, including a business associate agreement with a HIPAA covered entity. The hospital signs those, not Prefix AI.
 
