@@ -20,6 +20,7 @@ import type {
   ReleasedSlot,
   RescheduleRequest,
   RetentionReport,
+  RiskModelInfo,
   Role,
   StaffNotificationFeed,
   StaffNotificationSummary,
@@ -295,3 +296,13 @@ export function getIntegrationHealth(): Promise<IntegrationHealth> {
 export function listFacilities(): Promise<FacilityOption[]> {
   return guarded(api<FacilityOption[]>("/admin/facilities"));
 }
+
+/** Which cancellation risk model scores procedures. Null if the API cannot say. */
+export const getRiskModel = cache(async (): Promise<RiskModelInfo | null> => {
+  try {
+    return await guarded(api<RiskModelInfo>("/risk/model"));
+  } catch (error) {
+    if (error instanceof ApiError) return null;
+    throw error;
+  }
+});

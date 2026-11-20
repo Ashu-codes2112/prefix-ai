@@ -13,6 +13,7 @@ vi.mock("@/lib/server/dal", () => ({
   getCurrentUser: vi.fn(),
   getErasurePhrase: vi.fn(),
   getPatientDrawer: vi.fn(),
+  getRiskModel: vi.fn().mockResolvedValue(null),
   listUpcoming: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("./compliance/actions", () => ({

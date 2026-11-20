@@ -44,6 +44,7 @@ from prefix_api.routers import (
     patients,
     protocols,
     requests,
+    risk_model,
     staff_notifications,
     tasks,
     waitlist,
@@ -52,6 +53,7 @@ from prefix_api.routers import (
 from prefix_api.services.assistant.llm import build_assistant_llm
 from prefix_api.services.integrations import default_client
 from prefix_api.services.messaging.providers import build_messaging_provider
+from prefix_api.services.risk import active_model
 
 logger = get_logger(__name__)
 
@@ -106,6 +108,9 @@ def create_app(
     app.state.rate_limiter = rate_limiter or build_rate_limiter(settings)
     app.state.messaging_provider = build_messaging_provider(settings)
     app.state.fhir_client_factory = default_client
+    # Chosen once from these settings. Fails at start-up, not at the first score, if
+    # RISK_MODEL=v2 and its file is unusable.
+    app.state.risk_model = active_model(settings)
 
     register_error_handlers(app)
 
@@ -143,5 +148,6 @@ def create_app(
     app.include_router(assistant_status.router)
     app.include_router(compliance.router)
     app.include_router(integrations.router)
+    app.include_router(risk_model.router)
     app.include_router(webhooks.router)
     return app

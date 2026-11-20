@@ -39,6 +39,7 @@ from prefix_api.domain.portal import StepState, step_view
 from prefix_api.domain.principal import StaffPrincipal
 from prefix_api.domain.risk import RiskResult
 from prefix_api.services.audit import record_audit
+from prefix_api.services.risk import RULES, RiskModel
 from prefix_api.services.risk import compute as compute_risk
 
 PURPOSE_LIST = "dashboard_list"
@@ -110,8 +111,9 @@ def _sla(task: Task, now: dt.datetime) -> str:
 
 
 class DashboardService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, risk_model: RiskModel = RULES) -> None:
         self._session = session
+        self._risk_model = risk_model
 
     def upcoming(
         self, principal: StaffPrincipal, *, now: dt.datetime, hours: int = 72, limit: int = 200
@@ -162,7 +164,7 @@ class DashboardService:
                     problem_steps=problems[appointment.id],
                     open_escalations=escalations[appointment.id],
                     open_tasks=tasks[appointment.id],
-                    risk=compute_risk(self._session, appointment, now=now),
+                    risk=compute_risk(self._session, appointment, now=now, model=self._risk_model),
                 )
             )
         result.sort(
@@ -277,7 +279,7 @@ class DashboardService:
             problem_steps=problems[appointment.id],
             open_escalations=escalations[appointment.id],
             open_tasks=tasks[appointment.id],
-            risk=compute_risk(self._session, appointment, now=now),
+            risk=compute_risk(self._session, appointment, now=now, model=self._risk_model),
         )
 
     def queue(

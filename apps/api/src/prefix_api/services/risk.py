@@ -7,11 +7,15 @@ computes the score on the fly, so what it shows is always current.
 
 import datetime as dt
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from prefix_api.core.config import RiskModelName, Settings
 from prefix_api.db.models import (
     Appointment,
     CheckIn,
@@ -24,6 +28,7 @@ from prefix_api.db.models import (
     RiskScore,
     Task,
 )
+from prefix_api.domain import risk_v2
 from prefix_api.domain.enums import (
     AppointmentStatus,
     AuditAction,
@@ -46,6 +51,37 @@ WINDOW = dt.timedelta(hours=72)
 _CLOSED = (AppointmentStatus.CANCELLED, AppointmentStatus.COMPLETED)
 _OPEN_TASKS = (TaskStatus.OPEN, TaskStatus.IN_PROGRESS)
 _HIGH_TASK_DUE = dt.timedelta(hours=1)
+
+
+@dataclass(frozen=True, slots=True)
+class RiskModel:
+    """The model in use, chosen by RISK_MODEL. Every stored score records its version."""
+
+    name: RiskModelName
+    version: str
+    # What the dashboard shows: "v1 rules" or "v2 ML".
+    label: str
+    score: Callable[[RiskInputs], RiskResult]
+
+
+RULES = RiskModel(name="v1", version=MODEL_VERSION, label="v1 rules", score=score)
+
+
+@lru_cache(maxsize=4)
+def _logistic(path: Path | None) -> RiskModel:
+    model = risk_v2.load_model(path)
+    return RiskModel(
+        name="v2",
+        version=model.version,
+        label="v2 ML",
+        score=lambda inputs: risk_v2.score(model, inputs),
+    )
+
+
+def active_model(settings: Settings) -> RiskModel:
+    if settings.risk_model == "v2":
+        return _logistic(settings.risk_model_file)
+    return RULES
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,12 +141,23 @@ def gather(session: Session, appointment: Appointment, *, now: dt.datetime) -> R
     )
 
 
-def compute(session: Session, appointment: Appointment, *, now: dt.datetime) -> RiskResult:
-    return score(gather(session, appointment, now=now))
+def compute(
+    session: Session,
+    appointment: Appointment,
+    *,
+    now: dt.datetime,
+    model: RiskModel = RULES,
+) -> RiskResult:
+    return model.score(gather(session, appointment, now=now))
 
 
-def refresh(session_factory: sessionmaker[Session], *, now: dt.datetime) -> RefreshResult:
-    """Score every upcoming procedure in every hospital; open a task for each new HIGH one."""
+def refresh(
+    session_factory: sessionmaker[Session], *, now: dt.datetime, model: RiskModel = RULES
+) -> RefreshResult:
+    """Score every upcoming procedure in every hospital; open a task for each new HIGH one.
+
+    Callers pass the configured model (``active_model(settings)``); the rules are the default.
+    """
     scored = high = opened = 0
     with session_factory() as session:
         appointments = session.scalars(
@@ -121,7 +168,7 @@ def refresh(session_factory: sessionmaker[Session], *, now: dt.datetime) -> Refr
             )
         ).all()
         for appointment in appointments:
-            result = compute(session, appointment, now=now)
+            result = compute(session, appointment, now=now, model=model)
             session.add(
                 RiskScore(
                     organization_id=appointment.organization_id,
@@ -132,7 +179,7 @@ def refresh(session_factory: sessionmaker[Session], *, now: dt.datetime) -> Refr
                         {"feature": f.feature, "weight": f.points, "label": f.label}
                         for f in result.factors
                     ],
-                    model_version=MODEL_VERSION,
+                    model_version=model.version,
                     computed_at=now,
                 )
             )

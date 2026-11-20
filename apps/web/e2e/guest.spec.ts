@@ -11,6 +11,8 @@ test("a guest tries the demo: sees the demo banner, the nurse inbox and a demo p
   await expect(
     page.getByRole("status").filter({ hasText: "Demo mode" }),
   ).toBeVisible();
+  // The worklist says which risk model ranks it (version 1 rules unless RISK_MODEL=v2).
+  await expect(page.getByText("Model: v1 rules")).toBeVisible();
 
   // No Twilio values in tests, so messages are only logged, and the app says so.
   await page.getByRole("link", { name: "Messaging: demo mode" }).click();
