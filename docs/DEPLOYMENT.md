@@ -28,6 +28,7 @@ Every setting is read from the environment and validated at start-up (`apps/api/
 | `PII_ENCRYPTION_KEYS` | Comma-separated keys. The first encrypts; all of them decrypt. Create one with `uv run python -c "from prefix_api.core.crypto import generate_key; print(generate_key())"`. |
 | `PII_BLIND_INDEX_KEY` | 32 or more random characters. Changing it breaks lookups by phone, e-mail and MRN. |
 | `LLM_MODEL` | The Claude model ID. Required; never hard-coded. |
+| `RISK_MODEL` | `v1` (rules, the default) or `v2` (calibrated logistic regression). Read [model_report.md](model_report.md) first: v2 is fitted on synthetic history until it is refitted on the hospital's own outcomes. `RISK_MODEL_FILE` points at another v2 file. The API refuses to start if the file cannot be used. |
 | `ANTHROPIC_API_KEY` | For the AI assistant. Without it, questions go straight to a nurse. |
 | `MESSAGING_PROVIDER` | `live` to send, refusing to start without Twilio. The default `auto` sends only when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` are set, and otherwise logs with recipients masked ("demo mode", shown in the staff app). `console` always logs. |
 | `TWILIO_*`, `SMTP_*` | The provider details. `TWILIO_WHATSAPP_FROM` is the WhatsApp sender if it is not the SMS number. |

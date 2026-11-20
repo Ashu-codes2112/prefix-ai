@@ -131,7 +131,7 @@ Implemented in `apps/api/src/prefix_api/db/models/` (migration `0002`). Every te
 | **PatientTimelineEvent** | One step scheduled for one appointment (unique per appointment+step, which makes sending idempotent). Due/send times and status. |
 | **CheckIn** | Milestone question, status, YES/NO/HELP/OTHER response, and encrypted free-text reply. |
 | **Message** | Inbound/outbound message on SMS/WhatsApp/email/portal. Encrypted body, plus the encrypted approved original whenever the body is a translation of it. |
-| **RiskScore** | 0–100 score, LOW/MEDIUM/HIGH, readable factors JSON, model version. |
+| **RiskScore** | 0–100 score, LOW/MEDIUM/HIGH, readable factors JSON, and the model version that made it (`rules-v1` or a v2 file's version). `RISK_MODEL` chooses the model: `domain/risk.py` (rules) or `domain/risk_v2.py` (a logistic regression read from a JSON file in `risk_models/`, fitted offline by `ml/train.py`; see `docs/model_report.md`). |
 | **WaitlistEntry** | Patient, procedure type, optional facility, date window, prep already done, priority, status ACTIVE/OFFERED/BOOKED/REMOVED. |
 | **BackfillOffer** | One offer of a released slot to a waitlisted patient: status OPEN/ACCEPTED/DECLINED, the reasons shown when it was made, and the appointment it booked. Partial unique indexes allow one OPEN and one ACCEPTED offer per slot, so a slot cannot be booked twice even under concurrent requests. |
 | **Escalation** | Source (red flag, out of protocol, patient-reported problem, high risk, staff), severity, status, encrypted summary and resolution note, assignee. |

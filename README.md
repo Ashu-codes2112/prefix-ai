@@ -235,7 +235,7 @@ Version 1.2 redesigned both apps as a calm medical service with Apple-style moti
 - [Design](docs/DESIGN.md): tokens, motion, navigation map and patient Updates.
 - [Deployment](docs/DEPLOYMENT.md): what runs, the environment, setting up a hospital with `prefix-admin`, backups, and the known limits.
 - [Integrations](docs/INTEGRATIONS.md): CSV import, the FHIR R4 sync (with a local mock server), and signed outbound webhooks.
-- [Risk model](docs/model_report.md): what the cancellation score uses and where it is weak.
+- [Risk model](docs/model_report.md): version 1 rules and version 2 calibrated logistic regression (AUC, calibration, confusion matrices), and where each is weak.
 
 ## Configuration
 
